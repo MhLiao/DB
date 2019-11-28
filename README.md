@@ -1,7 +1,7 @@
 # DB
 A Pytoch implementation of "Real-time Scene Text Detection with Differentiable Binarization". [This paper](https://arxiv.org/abs/1911.08947) presents a real-time arbitrary-shape scene text detector, achieving the state-of-the-art performance on standard benchmarks.
 
-Code is preparing. The code is plan to be available before 2019/12/05.
+Code is preparing. The code is planned to be available before 2019/12/05.
 
 ## Citing the related works
 
