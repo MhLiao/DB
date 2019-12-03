@@ -18,8 +18,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 ### Requirements:
 - Python3
 - PyTorch >= 1.2 
-- GCC >= 4.9 (This is very important to supprot PyTorch)
-- OpenCV
+- GCC >= 4.9 (This is important for PyTorch)
 - CUDA >= 9.0 (10.1 is recommended)
 
 
@@ -102,7 +101,7 @@ You can also try distributed training (not fully tested)
 ```python -m torch.distributed.launch --nproc_per_node=4 train.py path-to-yaml-file --num_gpus 4```
 
 ## Improvements
-Note that the current implementation is written by pure Python code except for the deformable convolution operator. Thus, the code can be further optimized by some optimization skills, such as [TensorRT](https://github.com/NVIDIA/TensorRT) for the model forward and efficient C++ code for the post-processing function (see struture/representers/seg_detector_representer.py).
+Note that the current implementation is written by pure Python code except for the deformable convolution operator. Thus, the code can be further optimized by some optimization skills, such as [TensorRT](https://github.com/NVIDIA/TensorRT) for the model forward and efficient C++ code for the [post-processing function](https://github.com/MhLiao/DB/blob/d0d855df1c66b002297885a089a18d50a265fa30/structure/representers/seg_detector_representer.py#L26).
 
 Another option to increase speed is to run the model forward and the post-processing algorithm in parallel through a producer-consumer strategy.
 
