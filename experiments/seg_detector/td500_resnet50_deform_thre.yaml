@@ -1,0 +1,77 @@
+import:
+    - 'experiments/seg_detector/base_td500.yaml'
+package: []
+define:
+  - name: 'Experiment'
+    class: Experiment
+    structure: 
+        class: Structure
+        builder: 
+            class: Builder
+            model: SegDetectorModel
+            model_args:
+                backbone: deformable_resnet50
+                decoder: SegDetector
+                decoder_args: 
+                    adaptive: True
+                    in_channels: [256, 512, 1024, 2048]
+                    k: 50
+                loss_class: L1BalanceCELoss
+
+        representer:
+            class: SegDetectorRepresenter
+            max_candidates: 1000
+        measurer:  
+            class: QuadMeasurer
+        visualizer:  
+            class: SegDetectorVisualizer
+    train: 
+        class: TrainSettings
+        data_loader: 
+            class: DataLoader
+            dataset: ^train_data
+            batch_size: 16
+            num_workers: 16
+        checkpoint: 
+            class: Checkpoint
+            start_epoch: 0
+            start_iter: 0
+            resume: null
+        model_saver: 
+            class: ModelSaver
+            dir_path: model
+            save_interval: 18000
+            signal_path: save
+        scheduler: 
+            class: OptimizerScheduler
+            optimizer: "SGD"
+            optimizer_args:
+                lr: 0.007
+                momentum: 0.9
+                weight_decay: 0.0001
+            learning_rate:  
+                class: DecayLearningRate
+                epochs: 1200
+        epochs: 1200
+
+    validation: &validate
+        class: ValidationSettings
+        data_loaders:
+            icdar2015: 
+                class: DataLoader
+                dataset: ^validate_data
+                batch_size: 1
+                num_workers: 16
+                collect_fn:
+                    class: ICDARCollectFN
+        visualize: false
+        interval: 4500
+        exempt: 1
+
+    logger:
+        class: Logger
+        verbose: true
+        level: info
+        log_interval: 450
+
+    evaluation: *validate

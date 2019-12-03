@@ -1,0 +1,17 @@
+pyyaml 
+tqdm 
+tensorboardX 
+opencv-python==4.1.2.30
+anyconfig 
+munch 
+scipy 
+sortedcontainers 
+shapely 
+pyclipper 
+gevent 
+geventwebsocket 
+flask 
+editdistance 
+scikit-image 
+imgaug
+

@@ -1,0 +1,44 @@
+import:
+    - 'experiments/base.yaml'
+package:
+    - 'decoders.seg_detector_loss'
+define:
+  - name: train_data
+    class: ImageDataset
+    data_dir:
+        - './datasets/total_text/'
+    data_list:
+        - './datasets/total_text/train_list.txt'
+    processes:
+        - class: AugmentDetectionData
+          augmenter_args:
+              - ['Fliplr', 0.5]
+              - {'cls': 'Affine', 'rotate': [-10, 10]}
+              - ['Resize', [0.5, 3.0]]
+          only_resize: False
+          keep_ratio: False
+        - class: RandomCropData
+          size: [640, 640]
+          max_tries: 10
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: MakeBorderMap
+        - class: NormalizeImage
+        - class: FilterKeys
+          superfluous: ['polygons', 'filename', 'shape', 'ignore_tags', 'is_training']
+
+  - name: validate_data
+    class: ImageDataset
+    data_dir:
+        - './datasets/total_text/'
+    data_list:
+        - './datasets/total_text/test_list.txt'
+    processes:
+        - class: AugmentDetectionData
+          augmenter_args:
+              - ['Resize', {'width': 800, 'height': 800}]
+          only_resize: True
+          keep_ratio: True
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: NormalizeImage
