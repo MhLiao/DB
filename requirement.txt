@@ -9,7 +9,7 @@ sortedcontainers
 shapely 
 pyclipper 
 gevent 
-geventwebsocket 
+gevent-websocket 
 flask 
 editdistance 
 scikit-image 
