@@ -34,7 +34,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
   conda install ipython pip
 
   # python dependencies
-  pip install -r requirements.txt
+  pip install -r requirement.txt
 
   # install PyTorch with cuda-10.1
   conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
