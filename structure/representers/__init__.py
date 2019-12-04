@@ -1,2 +1,1 @@
 from .seg_detector_representer import SegDetectorRepresenter
-from .boxes_from_map import boxes_from_map
