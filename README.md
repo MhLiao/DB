@@ -77,6 +77,9 @@ An example of the path of test images:
 ```
 The data root directory and the data list file can be defined in ```base_totaltext.yaml```
 
+### Config file
+The YAML files with the name of ```base*.yaml``` should not be used as the training or testing config file directly. 
+
 ### Evaluate the performance
 Note that we do not provide all the protocols for all benchmarks for simplification. The embedded evaluation protocol in the code is modified from the protocol of ICDAR 2015 dataset while support arbitrary-shape polygons. It almost produces the same results as the pascal evaluation protocol in Total-Text dataset. 
 
