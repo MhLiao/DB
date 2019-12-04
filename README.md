@@ -50,7 +50,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 ```
 
 ## Models
-Download Trained models [Baidu Drive](https://pan.baidu.com/s/1vxcdpOswTK6MxJyPIJlBkA) (download code: p6u3), [Google Drive (ToDo)]() (My connection to Google is not stable.)
+Download Trained models [Baidu Drive](https://pan.baidu.com/s/1vxcdpOswTK6MxJyPIJlBkA) (download code: p6u3), [Google Drive](https://drive.google.com/open?id=1T9n0HTP3X3Y_nJ0D1ekMhCQRHntORLJG).
 ```
   pre-trained-model-synthtext   -- used to finetune models, not for evaluation
   td500_resnet18
@@ -62,7 +62,7 @@ Download Trained models [Baidu Drive](https://pan.baidu.com/s/1vxcdpOswTK6MxJyPI
 ## Datasets
 The root of the dataset directory can be ```DB/datasets/```.
 
-Download the converted ground-truth and data list [Baidu Drive](https://pan.baidu.com/s/1BPYxcZnLXN87rQKmz9PFYA) (download code: mz0a), [Google Drive (ToDo)]() (My connection to Google is not stable.). The images of each dataset can be obtained from their official website.
+Download the converted ground-truth and data list [Baidu Drive](https://pan.baidu.com/s/1BPYxcZnLXN87rQKmz9PFYA) (download code: mz0a), [Google Drive](https://drive.google.com/open?id=12ozVTiBIqK8rUFWLUrlquNfoQxL2kAl7). The images of each dataset can be obtained from their official website.
 
 ## Testing
 ### Prepar dataset
