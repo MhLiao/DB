@@ -44,7 +44,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
   cd DB/
 
   # build deformable convolution opertor
-  # make sure the your cuda path of $CUDA_HOME is the same version as your cuda in PyTorch.
+  # make sure your cuda path of $CUDA_HOME is the same version as your cuda in PyTorch.
   echo $CUDA_HOME
   cd assets/ops/dcn/
   python setup.py build_ext --inplace
