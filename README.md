@@ -10,7 +10,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 - [x] Trained models
 - [x] Document for testing and training
 - [x] Evaluation
-- [ ] Demo script
+- [x] Demo script
 - [ ] More models on more datasets
 
 ## Installation
@@ -81,6 +81,13 @@ The data root directory and the data list file can be defined in ```base_totalte
 
 ### Config file
 The YAML files with the name of ```base*.yaml``` should not be used as the training or testing config file directly. 
+
+### Demo
+Run the model inference with a single image. Here is an example:
+
+```python demo.py experiments/seg_detector/totaltext_resnet18_deform_thre.yaml --image_path datasets/total_text/test_images/img10.jpg --resume path-to-model-directory/totaltext_resnet18 --polygon --box_thresh 0.7 --visualize```
+
+The results can be find in `demo_results`.
 
 ### Evaluate the performance
 Note that we do not provide all the protocols for all benchmarks for simplification. The embedded evaluation protocol in the code is modified from the protocol of ICDAR 2015 dataset while support arbitrary-shape polygons. It almost produces the same results as the pascal evaluation protocol in Total-Text dataset. 
