@@ -11,6 +11,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 - [x] Document for testing and training
 - [x] Evaluation
 - [x] Demo script
+- [ ] re-organize and clean the parameters
 - [ ] More models on more datasets
 
 ## Installation
