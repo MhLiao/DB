@@ -81,7 +81,7 @@ An example of the path of test images:
 The data root directory and the data list file can be defined in ```base_totaltext.yaml```
 
 ### Config file
-The YAML files with the name of ```base*.yaml``` should not be used as the training or testing config file directly. 
+**The YAML files with the name of ```base*.yaml``` should not be used as the training or testing config file directly.**
 
 ### Demo
 Run the model inference with a single image. Here is an example:
