@@ -24,6 +24,7 @@ class Logger(Configurable):
     log_dir = State(default='workspace')
     verbose = State(default=False)
     level = State(default='info')
+    log_interval = State(default=100)
 
     def __init__(self, **kwargs):
         self.load_all(**kwargs)
