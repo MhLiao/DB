@@ -34,9 +34,10 @@ class Logger(Configurable):
         cmd = kwargs['cmd']
         self.name = cmd['name']
         self.log_dir = os.path.join(self.log_dir, self.name)
-        self.verbose = cmd['verbose']
-        if cmd['debug']:
-            self.log_interval = 1
+        try:
+            self.verbose = cmd['verbose']
+        except:
+            print('verbose:', self.verbose)
         if self.verbose:
             print('Initializing log dir for', self.log_dir)
 

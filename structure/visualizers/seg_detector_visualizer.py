@@ -87,3 +87,18 @@ class SegDetectorVisualizer(Configurable):
                 filename + '_output': pred_canvas,
                 # filename + '_pred': thresh_binary
             }
+
+    def demo_visualize(self, image_path, output):
+        boxes, _ = output
+        boxes = boxes[0]
+        original_image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        original_shape = original_image.shape
+        pred_canvas = original_image.copy().astype(np.uint8)
+        pred_canvas = cv2.resize(pred_canvas, (original_shape[1], original_shape[0]))
+
+        for box in boxes:
+            box = np.array(box).astype(np.int32).reshape(-1, 2)
+            cv2.polylines(pred_canvas, [box], True, (0, 255, 0), 2)
+
+        return pred_canvas
+
