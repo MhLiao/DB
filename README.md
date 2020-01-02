@@ -144,6 +144,9 @@ Another option to increase speed is to run the model forward and the post-proces
 
 Contributions or pull requests are welcome.
 
+## Third-party implementations
+* Keras implementation: [xuannianz/DifferentiableBinarization](https://github.com/xuannianz/DifferentiableBinarization)
+
 ## Citing the related works
 
 Please cite the related works in your publications if it helps your research:
