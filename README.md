@@ -12,7 +12,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 - [x] Evaluation
 - [x] Demo script
 - [ ] re-organize and clean the parameters
-- [ ] More models on more datasets
+
 
 ## Installation
 
@@ -107,6 +107,15 @@ CUDA_VISIBLE_DEVICES=0 python eval.py experiments/seg_detector/totaltext_resnet5
 CUDA_VISIBLE_DEVICES=0 python eval.py experiments/seg_detector/td500_resnet18_deform_thre.yaml --resume path-to-model-directory/td500_resnet18 --box_thresh 0.5
 
 CUDA_VISIBLE_DEVICES=0 python eval.py experiments/seg_detector/td500_resnet50_deform_thre.yaml --resume path-to-model-directory/td500_resnet50 --box_thresh 0.5
+
+# short side 736, which can be changed in base_ic15.yaml
+CUDA_VISIBLE_DEVICES=0 python eval.py experiments/seg_detector/ic15_resnet18_deform_thre.yaml --resume path-to-model-directory/ic15_resnet18 --box_thresh 0.55
+
+# short side 736, which can be changed in base_ic15.yaml
+CUDA_VISIBLE_DEVICES=0 python eval.py experiments/seg_detector/ic15_resnet50_deform_thre.yaml --resume path-to-model-directory/ic15_resnet50 --box_thresh 0.6
+
+# short side 1152, which can be changed in base_ic15.yaml
+CUDA_VISIBLE_DEVICES=0 python eval.py experiments/seg_detector/ic15_resnet50_deform_thre.yaml --resume path-to-model-directory/ic15_resnet50 --box_thresh 0.6
 ```
 
 The results should be as follows:
@@ -117,6 +126,9 @@ The results should be as follows:
 | totaltext-resnet50 	|    88.0   	|  81.5  	|    84.6   	|        87.1       	|      82.5      	|        84.7       	|
 |   td500-resnet18   	|    86.5   	|  79.4  	|    82.8   	|        90.4       	|      76.3      	|        82.8       	|
 |   td500-resnet50   	|    91.1   	|  80.8  	|    85.6   	|        91.5       	|      79.2      	|        84.9       	|
+| ic15-resnet18 (736) |    87.7   	|  77.5  	|    82.3   	|        86.8       	|      78.4     	|        82.3       	|
+| ic15-resnet50 (736) |    91.3   	|  80.3  	|    85.4   	|        88.2       	|      82.7      	|        85.4       	|
+| ic15-resnet50 (1152)|    90.7   	|  84.0  	|    87.2   	|        91.8      	  |      83.2      	|        87.3       	|
 
 
 ```box_thresh``` can be used to balance the precision and recall, which may be different for different datasets to get a good F-measure. ```polygon``` is only used for arbitrary-shape text dataset. The size of the input images are defined in ```validate_data->processes->AugmentDetectionData``` in ```base_*.yaml```.
