@@ -145,7 +145,7 @@ Check the paths of data_dir and data_list in the base_*.yaml file. For better pe
 
 ```CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py path-to-yaml-file --num_gpus 4```
 
-You can also try distributed training (not fully tested)
+You can also try distributed training (**Note that the distributed mode is not fully tested. I am not sure whether it can achieves the same performance as non-distributed training.**)
 
 ```CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4 train.py path-to-yaml-file --num_gpus 4```
 
