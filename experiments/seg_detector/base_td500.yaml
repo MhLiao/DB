@@ -6,11 +6,11 @@ define:
   - name: train_data
     class: ImageDataset
     data_dir:
-        - './datasets/TD_TR/TD500/'
-        - './datasets/TD_TR/TR400/'
+        - '/mnt/data/TD_TR/TD500/'
+        - '/mnt/data/TD_TR/TR400/'
     data_list:
-        - './datasets/TD_TR/TD500/train_list.txt'
-        - './datasets/TD_TR/TR400/train_list.txt'
+        - '/mnt/data/TD_TR/TD500/train_list.txt'
+        - '/mnt/data/TD_TR/TR400/train_list.txt'
     processes:
         - class: AugmentDetectionData
           augmenter_args:
@@ -32,9 +32,9 @@ define:
   - name: validate_data
     class: ImageDataset
     data_dir:
-        - './datasets/TD_TR/TD500/'
+        - '/mnt/data/TD_TR/TD500/'
     data_list:
-        - './datasets/TD_TR/TD500/test_list.txt'
+        - '/mnt/data/TD_TR/TD500/test_list.txt'
     processes:
         - class: AugmentDetectionData
           augmenter_args:

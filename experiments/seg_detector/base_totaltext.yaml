@@ -6,9 +6,9 @@ define:
   - name: train_data
     class: ImageDataset
     data_dir:
-        - './datasets/total_text/'
+        - '/mnt/data/total_text/'
     data_list:
-        - './datasets/total_text/train_list.txt'
+        - '/mnt/data/total_text/train_list.txt'
     processes:
         - class: AugmentDetectionData
           augmenter_args:
@@ -30,9 +30,9 @@ define:
   - name: validate_data
     class: ImageDataset
     data_dir:
-        - './datasets/total_text/'
+        - '/mnt/data/total_text/'
     data_list:
-        - './datasets/total_text/test_list.txt'
+        - '/mnt/data/total_text/test_list.txt'
     processes:
         - class: AugmentDetectionData
           augmenter_args:
