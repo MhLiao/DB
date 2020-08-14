@@ -62,7 +62,7 @@ class ImageDataset(data.Dataset, Configurable):
                 item = {}
                 parts = line.strip().split(',')
                 label = parts[-1]
-                if label == '1':
+                if 'TD' in self.data_dir[0] and label == '1':
                     label = '###'
                 line = [i.strip('\ufeff').strip('\xef\xbb\xbf') for i in parts]
                 if 'icdar' in self.data_dir[0]:
