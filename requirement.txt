@@ -13,5 +13,5 @@ gevent-websocket
 flask 
 editdistance 
 scikit-image 
-imgaug
+imgaug==0.2.8
 
