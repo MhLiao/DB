@@ -129,7 +129,7 @@ class SegDetectorRepresenter(Configurable):
         contours, _ = cv2.findContours(
             (bitmap * 255).astype(np.uint8),
             cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        num_contours = min(len(contours), self.max_candidates)
+        num_contours = len(contours)
         boxes = np.zeros((num_contours, 4, 2), dtype=np.int16)
         scores = np.zeros((num_contours,), dtype=np.float32)
 
@@ -143,7 +143,7 @@ class SegDetectorRepresenter(Configurable):
             if self.box_thresh > score:
                 continue
 
-            box = self.unclip(points,is_rect=True).reshape(-1, 1, 2)
+            box = self.unclip(points, is_rect=True).reshape(-1, 1, 2)
             box, sside = self.get_mini_boxes(box)
             if sside < self.min_size + 2:
                 continue
