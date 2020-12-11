@@ -4,6 +4,7 @@ from shapely.geometry import Polygon
 import pyclipper
 from concern.config import Configurable, State
 
+
 class SegDetectorRepresenter(Configurable):
     thresh = State(default=0.3)
     box_thresh = State(default=0.7)
@@ -58,7 +59,7 @@ class SegDetectorRepresenter(Configurable):
             boxes_batch.append(boxes)
             scores_batch.append(scores)
         return boxes_batch, scores_batch
-    
+
     def binarize(self, pred):
         return pred > self.thresh
 
@@ -76,7 +77,7 @@ class SegDetectorRepresenter(Configurable):
         scores = []
 
         contours, _ = cv2.findContours(
-            (bitmap*255).astype(np.uint8),
+            (bitmap * 255).astype(np.uint8),
             cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
         for contour in contours[:self.max_candidates]:
@@ -91,7 +92,7 @@ class SegDetectorRepresenter(Configurable):
             score = self.box_score_fast(pred, points.reshape(-1, 2))
             if self.box_thresh > score:
                 continue
-            
+
             if points.shape[0] > 2:
                 box = self.unclip(points, unclip_ratio=2.0)
                 if len(box) > 1:
@@ -106,7 +107,7 @@ class SegDetectorRepresenter(Configurable):
             if not isinstance(dest_width, int):
                 dest_width = dest_width.item()
                 dest_height = dest_height.item()
-            
+
             box[:, 0] = np.clip(
                 np.round(box[:, 0] / width * dest_width), 0, dest_width)
             box[:, 1] = np.clip(
@@ -120,13 +121,13 @@ class SegDetectorRepresenter(Configurable):
         _bitmap: single map with shape (1, H, W),
             whose values are binarized as {0, 1}
         '''
-        
+
         assert _bitmap.size(0) == 1
         bitmap = _bitmap.cpu().numpy()[0]  # The first channel
         pred = pred.cpu().detach().numpy()[0]
         height, width = bitmap.shape
         contours, _ = cv2.findContours(
-            (bitmap*255).astype(np.uint8),
+            (bitmap * 255).astype(np.uint8),
             cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         num_contours = min(len(contours), self.max_candidates)
         boxes = np.zeros((num_contours, 4, 2), dtype=np.int16)
@@ -141,8 +142,8 @@ class SegDetectorRepresenter(Configurable):
             score = self.box_score_fast(pred, points.reshape(-1, 2))
             if self.box_thresh > score:
                 continue
-        
-            box = self.unclip(points).reshape(-1, 1, 2)
+
+            box = self.unclip(points,is_rect=True).reshape(-1, 1, 2)
             box, sside = self.get_mini_boxes(box)
             if sside < self.min_size + 2:
                 continue
@@ -150,7 +151,7 @@ class SegDetectorRepresenter(Configurable):
             if not isinstance(dest_width, int):
                 dest_width = dest_width.item()
                 dest_height = dest_height.item()
-            
+
             box[:, 0] = np.clip(
                 np.round(box[:, 0] / width * dest_width), 0, dest_width)
             box[:, 1] = np.clip(
@@ -159,9 +160,24 @@ class SegDetectorRepresenter(Configurable):
             scores[index] = score
         return boxes, scores
 
-    def unclip(self, box, unclip_ratio=1.5):
-        poly = Polygon(box)
-        distance = poly.area * unclip_ratio / poly.length
+    def unclip(self, box, unclip_ratio=1.5, is_rect=False):
+        if is_rect:
+            min_x = box[:, 0].min()
+            max_x = box[:, 0].max()
+            min_y = box[:, 1].min()
+            max_y = box[:, 1].max()
+            h = max_y - min_y  # mini rect h
+            w = max_x - min_x  # mini rect w
+            c = 1 - np.sqrt(0.4, 2)  # shrink_ratio 0.4
+            # calculate the original width and height according to the new width and height and shrink_ratio
+            dt = ((2 * c - 2) * (h + w)) ** 2 - 4 * (4 * c - 8) * c * h * w
+            distance = (-(2 * c - 2) * (h + w) - np.sqrt(dt)) / (2 * (4 * c - 8))
+            distance = distance - 2  # subtract an appropriate distance to fit the results of the model from - 3 to + 3
+            # on my dataset, the best result is - 2
+            distance = max(distance, 0)  # prevent negative distance
+        else:
+            poly = Polygon(box)
+            distance = poly.area * unclip_ratio / poly.length
         offset = pyclipper.PyclipperOffset()
         offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
         expanded = np.array(offset.Execute(distance))
@@ -201,4 +217,4 @@ class SegDetectorRepresenter(Configurable):
         box[:, 0] = box[:, 0] - xmin
         box[:, 1] = box[:, 1] - ymin
         cv2.fillPoly(mask, box.reshape(1, -1, 2).astype(np.int32), 1)
-        return cv2.mean(bitmap[ymin:ymax+1, xmin:xmax+1], mask)[0]
+        return cv2.mean(bitmap[ymin:ymax + 1, xmin:xmax + 1], mask)[0]
