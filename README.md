@@ -1,3 +1,7 @@
+## News
+* DB is included in [OpenCV](https://github.com/opencv/opencv/blob/master/doc/tutorials/dnn/dnn_text_spotting/dnn_text_spotting.markdown)
+* DB is included in [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
+
 # Introduction
 This is a PyToch implementation of "Real-time Scene Text Detection with Differentiable Binarization". [This paper](https://arxiv.org/abs/1911.08947) presents a real-time arbitrary-shape scene text detector, achieving the state-of-the-art performance on standard benchmarks.
 
@@ -158,6 +162,8 @@ Contributions or pull requests are welcome.
 
 ## Third-party implementations
 * Keras implementation: [xuannianz/DifferentiableBinarization](https://github.com/xuannianz/DifferentiableBinarization)
+* DB is included in [OpenCV](https://github.com/opencv/opencv/blob/master/doc/tutorials/dnn/dnn_text_spotting/dnn_text_spotting.markdown)
+* DB is included in [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
 
 ## Citing the related works
 
