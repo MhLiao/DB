@@ -96,7 +96,7 @@ class MakeSegDetectionData(DataProcess):
         edge = 0
         for i in range(polygon.shape[0]):
             next_index = (i + 1) % polygon.shape[0]
-            edge += (polygon[next_index, 0] - polygon[i, 0]) * (polygon[next_index, 1] - polygon[i, 1])
+            edge += (polygon[next_index, 0] - polygon[i, 0]) * (polygon[next_index, 1] + polygon[i, 1])
 
         return edge / 2.
 
