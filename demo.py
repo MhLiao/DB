@@ -29,7 +29,7 @@ def main():
     parser.add_argument('--polygon', action='store_true',
                         help='output polygons if true')
     parser.add_argument('--eager', '--eager_show', action='store_true', dest='eager_show',
-                        help='Show iamges eagerly')
+                        help='Show images eagerly')
 
     args = parser.parse_args()
     args = vars(args)
