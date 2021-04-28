@@ -1,0 +1,76 @@
+import:
+    - 'experiments/seg_detector/base_totaltext.yaml'
+package: []
+define:
+  - name: 'Experiment'
+    class: Experiment
+    structure: 
+        class: Structure
+        builder: 
+            class: Builder
+            model: SegDetectorModel
+            model_args:
+                backbone: mobilenet_v3_large
+                decoder: SegDetector
+                decoder_args: 
+                    adaptive: True
+                    in_channels: [24, 40, 112, 960]
+                    k: 50
+                loss_class: L1BalanceCELoss
+        representer:
+            class: SegDetectorRepresenter
+            max_candidates: 1000
+        measurer:  
+            class: QuadMeasurer
+        visualizer:  
+            class: SegDetectorVisualizer
+    train: 
+        class: TrainSettings
+        data_loader: 
+            class: DataLoader
+            dataset: ^train_data
+            batch_size: 8
+            num_workers: 4
+        checkpoint: 
+            class: Checkpoint
+            start_epoch: 0
+            start_iter: 0
+            resume: null
+        model_saver: 
+            class: ModelSaver
+            dir_path: model
+            save_interval: 156
+            signal_path: save
+        scheduler: 
+            class: OptimizerScheduler
+            optimizer: "SGD"
+            optimizer_args:
+                lr: 0.001
+                momentum: 0.9
+                weight_decay: 0.0005
+            learning_rate:  
+                class: DecayLearningRate
+                epochs: 100 # 1200
+        epochs: 100 # 1200
+
+    validation: &validate
+        class: ValidationSettings
+        data_loaders:
+            icdar2015: 
+                class: DataLoader
+                dataset: ^validate_data
+                batch_size: 8
+                num_workers: 4
+                collect_fn:
+                    class: ICDARCollectFN
+        visualize: false
+        interval: 156
+        exempt: 1
+
+    logger:
+        class: Logger
+        verbose: true
+        level: info
+        log_interval: 156
+
+    evaluation: *validate

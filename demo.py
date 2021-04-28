@@ -26,7 +26,7 @@ def main():
                         help='visualize maps in tensorboard')
     parser.add_argument('--resize', action='store_true',
                         help='resize')
-    parser.add_argument('--polygon', action='store_true',
+    parser.add_argument('--polygon', action='store_false',
                         help='output polygons if true')
     parser.add_argument('--eager', '--eager_show', action='store_true', dest='eager_show',
                         help='Show iamges eagerly')
