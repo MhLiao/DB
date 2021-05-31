@@ -55,28 +55,28 @@ class AugmentData(DataProcess):
 
 
 class AugmentDetectionData(AugmentData):
-    def may_augment_annotation(self, aug, data, shape):
+    
+    def may_augment_annotation(self, aug: imgaug.augmenters.Augmenter, data, shape):
         if aug is None:
             return data
-
+        
         line_polys = []
+        keypoints = []
+        texts = []
         for line in data['lines']:
-            if self.only_resize:
-                new_poly = [(p[0], p[1]) for p in line['poly']]
-            else:
-                new_poly = self.may_augment_poly(aug, shape, line['poly'])
+            texts.append(line['text'])
+            for p in line['poly']:
+                keypoints.append(imgaug.Keypoint(p[0], p[1]))
+        
+        keypoints = aug.augment_keypoints([imgaug.KeypointsOnImage(keypoints=keypoints, shape=shape)])[0].keypoints
+        new_polys = np.array([p.x, p.y] for p in keypoints).reshape([-1, 4, 2])
+        for i in range(len(texts)):
+            poly = new_polys[i]
             line_polys.append({
-                'points': new_poly,
-                'ignore': line['text'] == '###',
-                'text': line['text'],
+                'points': poly,
+                'ignore': texts[i] == '###',
+                'text': texts[i]
             })
+        
         data['polys'] = line_polys
-        return data
-
-    def may_augment_poly(self, aug, img_shape, poly):
-        keypoints = [imgaug.Keypoint(p[0], p[1]) for p in poly]
-        keypoints = aug.augment_keypoints(
-            [imgaug.KeypointsOnImage(keypoints, shape=img_shape)])[0].keypoints
-        poly = [(p.x, p.y) for p in keypoints]
-        return poly
 
