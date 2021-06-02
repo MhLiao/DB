@@ -69,7 +69,8 @@ class AugmentDetectionData(AugmentData):
                 keypoints.append(imgaug.Keypoint(p[0], p[1]))
         
         keypoints = aug.augment_keypoints([imgaug.KeypointsOnImage(keypoints=keypoints, shape=shape)])[0].keypoints
-        new_polys = np.array([p.x, p.y] for p in keypoints).reshape([-1, 4, 2])
+        new_polys = np.array([[p.x, p.y] for p in keypoints]).reshape((-1, 4, 2))
+    
         for i in range(len(texts)):
             poly = new_polys[i]
             line_polys.append({
