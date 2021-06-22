@@ -168,7 +168,7 @@ class SegDetectorRepresenter(Configurable):
             max_y = box[:, 1].max()
             h = max_y - min_y  # mini rect h
             w = max_x - min_x  # mini rect w
-            c = 1 - np.sqrt(0.4, 2)  # shrink_ratio 0.4
+            c = 1 - np.power(0.4, 2)  # shrink_ratio 0.4
             # calculate the original width and height according to the new width and height and shrink_ratio
             dt = ((2 * c - 2) * (h + w)) ** 2 - 4 * (4 * c - 8) * c * h * w
             distance = (-(2 * c - 2) * (h + w) - np.sqrt(dt)) / (2 * (4 * c - 8))
