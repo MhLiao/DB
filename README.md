@@ -1,10 +1,11 @@
 ## News
+* The ASF module in DBNet++([TPAMI](https://ieeexplore.ieee.org/abstract/document/9726868/), [arxiv](https://arxiv.org/abs/2202.10304)) is released.
 * DB is included in [WeChat OCR engine](https://mp.weixin.qq.com/s/6IGXof3KWVnN8z1i2YOqJA)
 * DB is included in [OpenCV](https://github.com/opencv/opencv/blob/master/doc/tutorials/dnn/dnn_text_spotting/dnn_text_spotting.markdown)
 * DB is included in [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
 
 # Introduction
-This is a PyToch implementation of "Real-time Scene Text Detection with Differentiable Binarization". [This paper](https://arxiv.org/abs/1911.08947) presents a real-time arbitrary-shape scene text detector, achieving the state-of-the-art performance on standard benchmarks.
+This is a PyToch implementation of DBNet([arxiv](https://arxiv.org/abs/1911.08947)) and DBNet++([TPAMI](https://ieeexplore.ieee.org/abstract/document/9726868/), [arxiv](https://arxiv.org/abs/2202.10304)).  It presents a real-time arbitrary-shape scene text detector, achieving the state-of-the-art performance on standard benchmarks.
 
 Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/MegReader).
 
@@ -16,14 +17,16 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 - [x] Document for testing and training
 - [x] Evaluation
 - [x] Demo script
-- [ ] re-organize and clean the parameters
+- [x] Release DBNet++ code
+- [ ] Release DBNet++ models
+
 
 
 ## Installation
 
 ### Requirements:
 - Python3
-- PyTorch >= 1.2 
+- PyTorch == 1.2 
 - GCC >= 4.9 (This is important for PyTorch)
 - CUDA >= 9.0 (10.1 is recommended)
 
@@ -175,6 +178,14 @@ Please cite the related works in your publications if it helps your research:
       title={Real-time Scene Text Detection with Differentiable Binarization},
       booktitle={Proc. AAAI},
       year={2020}
+    }
+
+    @article{liao2022real,
+      title={Real-Time Scene Text Detection with Differentiable Binarization and Adaptive Scale Fusion},
+      author={Liao, Minghui and Zou, Zhisheng and Wan, Zhaoyi and Yao, Cong and Bai, Xiang},
+      journal={IEEE Transactions on Pattern Analysis and Machine Intelligence},
+      year={2022},
+      publisher={IEEE}
     }
 
 
