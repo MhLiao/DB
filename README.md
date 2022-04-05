@@ -18,7 +18,7 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 - [x] Evaluation
 - [x] Demo script
 - [x] Release DBNet++ code
-- [ ] Release DBNet++ models
+- [x] Release DBNet++ models
 
 
 
@@ -63,6 +63,8 @@ Part of the code is inherited from [MegReader](https://github.com/Megvii-CSG/Meg
 ```
 
 ## Models
+New: DBNet++ trained models [Google Drive](https://drive.google.com/drive/folders/1buwe_b6ysoZFCJgHMHIr-yHd-hEivQRK?usp=sharing).
+
 Download Trained models [Baidu Drive](https://pan.baidu.com/s/1vxcdpOswTK6MxJyPIJlBkA) (download code: p6u3), [Google Drive](https://drive.google.com/open?id=1T9n0HTP3X3Y_nJ0D1ekMhCQRHntORLJG).
 ```
   pre-trained-model-synthtext   -- used to finetune models, not for evaluation
