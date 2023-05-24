@@ -10,8 +10,8 @@ class SignalMonitor(object):
             return None
         if os.path.exists(self.file_path):
             with open(self.file_path) as f:
-                data = self.file.read()
-                os.remove(f)
+                data = f.read()
+                os.remove(self.file_path)
                 return data
         else:
             return None
