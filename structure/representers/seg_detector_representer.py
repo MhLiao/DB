@@ -7,12 +7,12 @@ from concern.config import Configurable, State
 class SegDetectorRepresenter(Configurable):
     thresh = State(default=0.3)
     box_thresh = State(default=0.7)
-    max_candidates = State(default=100)
+    max_candidates = State(default=200)
     dest = State(default='binary')
 
     def __init__(self, cmd={}, **kwargs):
         self.load_all(**kwargs)
-        self.min_size = 3
+        self.min_size = 1
         self.scale_ratio = 0.4
         if 'debug' in cmd:
             self.debug = cmd['debug']
@@ -77,14 +77,18 @@ class SegDetectorRepresenter(Configurable):
 
         contours, _ = cv2.findContours(
             (bitmap*255).astype(np.uint8),
-            cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         for contour in contours[:self.max_candidates]:
-            epsilon = 0.002 * cv2.arcLength(contour, True)
+            rec_points, sside = self.get_mini_boxes(contour)
+            rec_points = np.array(rec_points)
+            if sside < self.min_size:
+                continue
+            epsilon = 0.0000002 * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
             points = approx.reshape((-1, 2))
             if points.shape[0] < 4:
-                continue
+                points = rec_points
             # _, sside = self.get_mini_boxes(contour)
             # if sside < self.min_size:
             #     continue
@@ -168,7 +172,11 @@ class SegDetectorRepresenter(Configurable):
         return expanded
 
     def get_mini_boxes(self, contour):
+        if len(contour) == 0:
+            return None, 0
         bounding_box = cv2.minAreaRect(contour)
+
+        # poly
         points = sorted(list(cv2.boxPoints(bounding_box)), key=lambda x: x[0])
 
         index_1, index_2, index_3, index_4 = 0, 1, 2, 3
@@ -188,6 +196,10 @@ class SegDetectorRepresenter(Configurable):
         box = [points[index_1], points[index_2],
                points[index_3], points[index_4]]
         return box, min(bounding_box[1])
+
+        # # rec
+        # x, y, w, h = cv2.boundingRect(contour)
+        # return [[x, y], [x + w, y], [x + w, y + h], [x, y+ h]], min(bounding_box[1])
 
     def box_score_fast(self, bitmap, _box):
         h, w = bitmap.shape[:2]

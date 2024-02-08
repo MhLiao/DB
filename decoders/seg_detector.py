@@ -134,11 +134,11 @@ class SegDetector(nn.Module):
         # this is the pred module, not binarization module; 
         # We do not correct the name due to the trained model.
         binary = self.binarize(fuse)
-        if self.training:
+        if training:
             result = OrderedDict(binary=binary)
         else:
             return binary
-        if self.adaptive and self.training:
+        if self.adaptive and training:
             if self.serial:
                 fuse = torch.cat(
                         (fuse, nn.functional.interpolate(

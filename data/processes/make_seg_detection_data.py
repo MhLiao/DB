@@ -30,6 +30,7 @@ class MakeSegDetectionData(DataProcess):
         ignore_tags = data['ignore_tags']
         image = data['image']
         filename = data['filename']
+        lines = data['lines']
 
         h, w = image.shape[:2]
         if data['is_training']:
@@ -50,9 +51,16 @@ class MakeSegDetectionData(DataProcess):
                     np.int32)[np.newaxis, :, :], 0)
                 ignore_tags[i] = True
             else:
+                # polygon_shape, polygon = self.process_with_convexHull(image, polygon)
+                # polygons[i] = polygon
                 polygon_shape = Polygon(polygon)
-                distance = polygon_shape.area * \
-                    (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
+                # if lines[i]["text"] != "1":
+                if True:
+                    distance = polygon_shape.area * \
+                        (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
+                else:
+                    distance = polygon_shape.area * \
+                        (1 - np.power(0.7, 2)) / polygon_shape.length
                 subject = [tuple(l) for l in polygons[i]]
                 padding = pyclipper.PyclipperOffset()
                 padding.AddPath(subject, pyclipper.JT_ROUND,
@@ -72,6 +80,25 @@ class MakeSegDetectionData(DataProcess):
                     polygons=polygons,
                     gt=gt, mask=mask, filename=filename)
         return data
+
+    def process_with_convexHull(self, image, polygon):
+        try:
+            polygon = polygon.astype(np.int32)
+            x_min, y_min, x_max, y_max = min(polygon[:,0]), min(polygon[:, 1]), max(polygon[:, 0]), max(polygon[:, 1])
+            piece = image[y_min:y_max, x_min:x_max, :].astype(np.uint8)
+            _, binary = cv2.threshold(cv2.cvtColor(piece, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+            contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            # image = cv2.polylines(image, [polygon], True, (0, 255, 0), thickness=2)
+            hull = cv2.convexHull(np.vstack(contours))
+            # cv2.drawContours(piece, [hull], 0, (0, 255, 0))
+            # cv2.imwrite("hoge.png", piece)
+            # exit()
+            hull[:, :, 0] += x_min
+            hull[:, :, 1] += y_min
+            polygon_shape = Polygon(hull.reshape(-1, 2))
+            return polygon_shape, hull.reshape(-1, 2)
+        except:
+            return Polygon(polygon), polygon
 
     def validate_polygons(self, polygons, ignore_tags, h, w):
         '''

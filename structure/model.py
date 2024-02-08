@@ -52,9 +52,9 @@ class SegDetectorModel(nn.Module):
             data = batch['image'].to(self.device)
         else:
             data = batch.to(self.device)
+        
         data = data.float()
-        pred = self.model(data, training=self.training)
-
+        pred = self.model(data, training=training)
         if self.training:
             for key, value in batch.items():
                 if value is not None:

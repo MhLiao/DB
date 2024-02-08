@@ -36,7 +36,8 @@ class MakeICDARData(DataProcess):
                            ignore_tags=ignore_tags,
                            shape=shape,
                            filename=filename,
-                           is_training=data['is_training'])
+                           is_training=data['is_training'],
+                           lines=data['lines'])
 
     def draw_polygons(self, image, polygons, ignore_tags):
         for i in range(len(polygons)):

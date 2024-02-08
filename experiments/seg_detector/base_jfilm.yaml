@@ -1,0 +1,55 @@
+import:
+    - 'experiments/base.yaml'
+package:
+    - 'decoders.seg_detector_loss'
+define:
+  - name: train_data
+    class: ImageDataset
+    data_dir:
+        - './datasets/jfilm_imgs_0/'
+        - './datasets/kasai_imgs_0/'
+        - './datasets/new_england_doc_imgs_0/'
+    data_list:
+        - './datasets/jfilm_imgs_0/train.txt'
+        - './datasets/kasai_imgs_0/val.txt'
+        - './datasets/new_england_doc_imgs_0/test.txt'
+    processes:
+        - class: AugmentDetectionData
+          augmenter_args:
+              - ['Fliplr', 0.5]
+              - {'cls': 'Affine', 'rotate': [-10, 10]}
+              # - ['Resize', [1.0, 1.0]]
+          only_resize: False
+          keep_ratio: False
+        - class: RandomCropData
+          size: [640, 640]
+          max_tries: 10
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: MakeBorderMap
+        - class: NormalizeImage
+        - class: FilterKeys
+          superfluous: ['polygons', 'filename', 'shape', 'ignore_tags', 'is_training', 'lines']
+
+  - name: validate_data
+    class: ImageDataset
+    data_dir:
+        # - './datasets/jfilm_imgs_0/'
+        # - './datasets/kasai_imgs_0/'
+        - './datasets/new_england_doc_imgs_0/'
+    data_list:
+        # - './datasets/jfilm_imgs_0/val.txt'
+        # - './datasets/kasai_imgs_0/val.txt'
+        - './datasets/new_england_doc_imgs_0/test.txt'
+    processes:
+        - class: AugmentDetectionData
+          augmenter_args:
+              # - ['Resize', {'width': 1280, 'height': 736}]
+              - ['Resize', {'width': 3584, 'height': 2048}]
+          only_resize: True
+          keep_ratio: True
+        # - class: ResizeImage
+        #   mode: 'keep_size'
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: NormalizeImage

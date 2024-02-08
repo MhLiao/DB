@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from experiment import Experiment
 from data.data_loader import DistributedSampler
-
+import cv2
 
 class Trainer:
     def __init__(self, experiment: Experiment):
@@ -68,8 +68,14 @@ class Trainer:
             self.logger.info('Training epoch ' + str(epoch))
             self.logger.epoch(epoch)
             self.total = len(train_data_loader)
-
+            
             for batch in train_data_loader:
+                # for k, v in batch.items():
+                #     if len(v.shape) > 3:
+                #         cv2.imwrite(f"{k}.png", v[0, ...].permute(1,2,0).detach().cpu().numpy() * 255)
+                #     else:
+                #         cv2.imwrite(f"{k}.png", v[0, ...].detach().cpu().numpy() * 255)
+                # exit()
                 self.update_learning_rate(optimizer, epoch, self.steps)
 
                 self.logger.report_time("Data loading")
@@ -170,13 +176,13 @@ class Trainer:
         for i, batch in tqdm(enumerate(data_loader), total=len(data_loader)):
             pred = model.forward(batch, training=False)
             output = self.structure.representer.represent(batch, pred)
-            raw_metric, interested = self.structure.measurer.validate_measure(
-                batch, output)
+            raw_metric = self.structure.measurer.validate_measure(
+                batch, output, is_output_polygon=True, box_thresh=0.1)
             raw_metrics.append(raw_metric)
 
             if visualize and self.structure.visualizer:
                 vis_image = self.structure.visualizer.visualize(
-                    batch, output, interested)
+                    batch, output, pred)
                 vis_images.update(vis_image)
         metrics = self.structure.measurer.gather_measure(
             raw_metrics, self.logger)

@@ -37,20 +37,25 @@ class MakeBorderMap(DataProcess):
         for i in range(len(polygons)):
             if ignore_tags[i]:
                 continue
-            self.draw_border_map(polygons[i], canvas, mask=mask)
+            self.draw_border_map(polygons[i], canvas, mask=mask, text=data['lines'][i]['text'])
         canvas = canvas * (self.thresh_max - self.thresh_min) + self.thresh_min
         data['thresh_map'] = canvas
         data['thresh_mask'] = mask
         return data
 
-    def draw_border_map(self, polygon, canvas, mask):
+    def draw_border_map(self, polygon, canvas, mask, text):
         polygon = np.array(polygon)
         assert polygon.ndim == 2
         assert polygon.shape[1] == 2
 
         polygon_shape = Polygon(polygon)
-        distance = polygon_shape.area * \
-            (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
+        # if text != "1":
+        if True:
+            distance = polygon_shape.area * \
+                (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
+        else:
+            distance = polygon_shape.area * \
+                (1 - np.power(0.7, 2)) / polygon_shape.length
         subject = [tuple(l) for l in polygon]
         padding = pyclipper.PyclipperOffset()
         padding.AddPath(subject, pyclipper.JT_ROUND,

@@ -19,6 +19,7 @@ from training.model_saver import ModelSaver
 from training.optimizer_scheduler import OptimizerScheduler
 from concern.config import Configurable, Config
 import time
+import cv2
 
 def main():
     parser = argparse.ArgumentParser(description='Text Recognition Training')
@@ -99,7 +100,7 @@ class Eval:
         torch.set_default_tensor_type('torch.FloatTensor')
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
-            torch.set_default_tensor_type('torch.cuda.FloatTensor')
+            # torch.set_default_tensor_type('torch.cuda.FloatTensor')
         else:
             self.device = torch.device('cpu')
 
@@ -138,7 +139,7 @@ class Eval:
         for index in range(batch['image'].size(0)):
             original_shape = batch['shape'][index]
             filename = batch['filename'][index]
-            result_file_name = 'res_' + filename.split('/')[-1].split('.')[0] + '.txt'
+            result_file_name = os.path.basename(filename).replace(filename.split(".")[-1], "txt")
             result_file_path = os.path.join(self.args['result_dir'], result_file_name)
             boxes = batch_boxes[index]
             scores = batch_scores[index]
@@ -174,20 +175,29 @@ class Eval:
                         time_cost = self.report_speed(model, batch, times=50)
                         continue
                     pred = model.forward(batch, training=False)
+                    # pred = pred['thresh_binary']
                     output = self.structure.representer.represent(batch, pred, is_output_polygon=self.args['polygon']) 
                     if not os.path.isdir(self.args['result_dir']):
                         os.mkdir(self.args['result_dir'])
                     self.format_output(batch, output)
-                    raw_metric = self.structure.measurer.validate_measure(batch, output, is_output_polygon=self.args['polygon'], box_thresh=self.args['box_thresh'])
-                    raw_metrics.append(raw_metric)
+                    # raw_metric = self.structure.measurer.validate_measure(batch, output, is_output_polygon=self.args['polygon'], box_thresh=self.args['box_thresh'])
+                    # raw_metrics.append(raw_metric)
 
                     if visualize and self.structure.visualizer:
                         vis_image = self.structure.visualizer.visualize(batch, output, pred)
                         self.logger.save_image_dict(vis_image)
                         vis_images.update(vis_image)
-                metrics = self.structure.measurer.gather_measure(raw_metrics, self.logger)
-                for key, metric in metrics.items():
-                    self.logger.info('%s : %f (%d)' % (key, metric.avg, metric.count))
+                        for k, v in vis_image.items():
+                            filename = k.replace("_output", "")
+                            cv2.imwrite(os.path.join(self.args['result_dir'], filename), v)
+
+                            heat = (np.clip(pred[0, 0, ...].detach().cpu().numpy(), 0, 1) * 255).astype(np.uint8)
+                            heat = cv2.applyColorMap(heat, cv2.COLORMAP_JET)
+                            cv2.imwrite(f"{self.args['result_dir']}/heat_{filename}", heat)
+
+                # metrics = self.structure.measurer.gather_measure(raw_metrics, self.logger)
+                # for key, metric in metrics.items():
+                #     self.logger.info('%s : %f (%d)' % (key, metric.avg, metric.count))
 
 if __name__ == '__main__':
     main()

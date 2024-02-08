@@ -1,0 +1,57 @@
+import:
+    - 'experiments/base.yaml'
+package:
+    - 'decoders.seg_detector_loss'
+define:
+  - name: train_data
+    class: ImageDataset
+    data_dir:
+        # - './datasets/TechSpeed_for_DB/'
+        - './datasets/E3HW_middle/'
+        - './datasets/HWJapanese/'
+        - './datasets/HwPrintedVerticalDEimgs/'
+    data_list:
+        # - './datasets/TechSpeed_for_DB/train.txt'
+        - './datasets/E3HW_middle/train.txt'
+        - './datasets/HWJapanese/train.txt'
+        - './datasets/HwPrintedVerticalDEimgs/train.txt'
+    processes:
+        - class: AugmentAlbumentation
+          # augmenter_args:
+          #     - ['Fliplr', 0.5]
+          #     - {'cls': 'Affine', 'rotate': [-10, 10]}
+          #     - ['Resize', [0.5, 3.0]]
+          only_resize: False
+          # keep_ratio: False
+        # - class: RandomCropData
+        #   size: [640, 640]
+        #   max_tries: 10
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: MakeBorderMap
+        - class: NormalizeImage
+        - class: FilterKeys
+          superfluous: ['polygons', 'filename', 'shape', 'ignore_tags', 'is_training', 'lines']
+
+  - name: validate_data
+    class: ImageDataset
+    data_dir:
+        - './datasets/TechSpeed_for_DB/'
+        # - './datasets/E3HW_middle/'
+        # - './datasets/HWJapanese/'
+        # - './datasets/HwPrintedVerticalDEimgs/'
+    data_list:
+        - './datasets/TechSpeed_for_DB/test.txt'
+        # - './datasets/E3HW_middle/test.txt'
+        # - './datasets/HWJapanese/test.txt'
+        # - './datasets/HwPrintedVerticalDEimgs/test.txt'
+    processes:
+        - class: AugmentDetectionData
+          augmenter_args:
+              - ['Resize', {'width': 1280, 'height': 736}]
+              # - ['Resize', {'width': 3584, 'height': 2048}]
+          only_resize: True
+          keep_ratio: True
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: NormalizeImage

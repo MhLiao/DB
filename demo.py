@@ -7,6 +7,7 @@ import numpy as np
 from experiment import Structure, Experiment
 from concern.config import Configurable, Config
 import math
+from glob import glob
 
 def main():
     parser = argparse.ArgumentParser(description='Text Recognition Training')
@@ -16,7 +17,7 @@ def main():
     parser.add_argument('--result_dir', type=str, default='./demo_results/', help='path to save results')
     parser.add_argument('--data', type=str,
                         help='The name of dataloader which will be evaluated on.')
-    parser.add_argument('--image_short_side', type=int, default=736,
+    parser.add_argument('--image_short_side', type=int, default=0,
                         help='The threshold to replace it in the representers')
     parser.add_argument('--thresh', type=float,
                         help='The threshold to replace it in the representers')
@@ -58,7 +59,7 @@ class Demo:
         torch.set_default_tensor_type('torch.FloatTensor')
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
-            torch.set_default_tensor_type('torch.cuda.FloatTensor')
+            # torch.set_default_tensor_type('torch.cuda.FloatTensor')
         else:
             self.device = torch.device('cpu')
 
@@ -78,12 +79,16 @@ class Demo:
 
     def resize_image(self, img):
         height, width, _ = img.shape
-        if height < width:
-            new_height = self.args['image_short_side']
-            new_width = int(math.ceil(new_height / height * width / 32) * 32)
+        if self.args['image_short_side']:
+            if height < width:
+                new_height = self.args['image_short_side']
+                new_width = int(math.ceil(new_height / height * width / 32) * 32)
+            else:
+                new_width = self.args['image_short_side']
+                new_height = int(math.ceil(new_width / width * height / 32) * 32)
         else:
-            new_width = self.args['image_short_side']
-            new_height = int(math.ceil(new_width / width * height / 32) * 32)
+            new_width = (((width - 1) // 32) + 1) * 32
+            new_height = (((height - 1) // 32) + 1) * 32
         resized_img = cv2.resize(img, (new_width, new_height))
         return resized_img
         
@@ -101,8 +106,9 @@ class Demo:
         for index in range(batch['image'].size(0)):
             original_shape = batch['shape'][index]
             filename = batch['filename'][index]
-            result_file_name = 'res_' + filename.split('/')[-1].split('.')[0] + '.txt'
-            result_file_path = os.path.join(self.args['result_dir'], result_file_name)
+            fn = os.path.basename(filename)
+            result_file_name = ".".join(fn.split('.')[:-1]) + '.txt'
+            result_file_path = os.path.join(self.args['result_dir'], 'txt', result_file_name)
             boxes = batch_boxes[index]
             scores = batch_scores[index]
             if self.args['polygon']:
@@ -128,21 +134,34 @@ class Demo:
         self.resume(model, self.model_path)
         all_matircs = {}
         model.eval()
-        batch = dict()
-        batch['filename'] = [image_path]
-        img, original_shape = self.load_image(image_path)
-        batch['shape'] = [original_shape]
-        with torch.no_grad():
-            batch['image'] = img
-            pred = model.forward(batch, training=False)
-            output = self.structure.representer.represent(batch, pred, is_output_polygon=self.args['polygon']) 
-            if not os.path.isdir(self.args['result_dir']):
-                os.mkdir(self.args['result_dir'])
-            self.format_output(batch, output)
-
-            if visualize and self.structure.visualizer:
-                vis_image = self.structure.visualizer.demo_visualize(image_path, output)
-                cv2.imwrite(os.path.join(self.args['result_dir'], image_path.split('/')[-1].split('.')[0]+'.jpg'), vis_image)
+        if os.path.isdir(image_path):
+            image_paths = [it for it in glob(f"{image_path}/*.*") if "jpg" in it or "png" in it]
+        else:
+            image_paths = [image_path]
+        for image_path in image_paths:
+            fn = os.path.basename(image_path)
+            batch = dict()
+            batch['filename'] = [image_path]
+            img, original_shape = self.load_image(image_path)
+            batch['shape'] = [original_shape]
+            with torch.no_grad():
+                batch['image'] = img
+                pred = model.forward(batch, training=False)
+                # pred = pred['thresh_binary']
+                
+                output = self.structure.representer.represent(batch, pred, is_output_polygon=self.args['polygon']) 
+                if not os.path.isdir(self.args['result_dir']):
+                    os.mkdir(self.args['result_dir'])
+                    os.mkdir(os.path.join(self.args['result_dir'], 'heat'))
+                    os.mkdir(os.path.join(self.args['result_dir'], 'txt'))
+                self.format_output(batch, output)
+                heat = (np.clip(pred[0, 0, ...].detach().cpu().numpy(), 0, 1) * 255).astype(np.uint8)
+                heat = cv2.applyColorMap(heat, cv2.COLORMAP_JET)
+                cv2.imwrite(f"{self.args['result_dir']}/heat/heat_{fn}", heat)
+                
+                if visualize and self.structure.visualizer:
+                    vis_image = self.structure.visualizer.demo_visualize(image_path, output)
+                    cv2.imwrite(os.path.join(self.args['result_dir'], fn), vis_image)
 
 if __name__ == '__main__':
     main()

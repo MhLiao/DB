@@ -1,0 +1,36 @@
+import:
+    - 'experiments/base.yaml'
+package:
+    - 'decoders.seg_detector_loss'
+define:
+  - name: train_data
+    class: ImageDataset
+    data_dir:
+        - './datasets/TechSpeed_for_DB/'
+    data_list:
+        - './datasets/TechSpeed_for_DB/train.txt'
+    processes:
+        - class: AugmentAlbumentation
+          only_resize: False
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: MakeBorderMap
+        - class: NormalizeImage
+        - class: FilterKeys
+          superfluous: ['polygons', 'filename', 'shape', 'ignore_tags', 'is_training', 'lines']
+
+  - name: validate_data
+    class: ImageDataset
+    data_dir:
+        - './datasets/TechSpeed_for_DB/'
+    data_list:
+        - './datasets/TechSpeed_for_DB/train.txt'
+    processes:
+        - class: AugmentDetectionData
+          augmenter_args:
+              - ['Resize', {'width': 1280, 'height': 736}]
+          only_resize: True
+          keep_ratio: True
+        - class: MakeICDARData
+        - class: MakeSegDetectionData
+        - class: NormalizeImage

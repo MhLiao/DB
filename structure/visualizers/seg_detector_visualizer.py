@@ -52,7 +52,7 @@ class SegDetectorVisualizer(Configurable):
         mean = np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
         image = (image.cpu().numpy() * std + mean).transpose(1, 2, 0) * 255
         pred_canvas = image.copy().astype(np.uint8)
-        pred_canvas = cv2.resize(pred_canvas, (original_shape[1], original_shape[0]))
+        pred_canvas = cv2.resize(pred_canvas, (int(original_shape[1]), int(original_shape[0])))
 
         if isinstance(pred, dict) and 'thresh' in pred:
             thresh = self._visualize_heatmap(pred['thresh'][index])
