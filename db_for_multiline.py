@@ -56,66 +56,69 @@ def main():
         img_paths = [args['image_path']]
     os.makedirs(args['result_dir'], exist_ok=True)
     for path in tqdm(img_paths):
-        img = cv2.imread(path, cv2.IMREAD_COLOR).astype('float32')
-        heat = CNN_forward(model, img, args['image_short_side'])
-        result = run(img, heat, output_path=None)
-        cv2.imwrite(os.path.join(args['result_dir'], os.path.basename(path)), result)
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = remove_background_imageset_by_opencv(gray)
+        heat = CNN_forward(model, img.astype('float32'), args['image_short_side'])
+        all_boxes = split_line_with_contour(gray, heat, args['box_thresh'])
+        for box in all_boxes:
+            cv2.polylines(img, [box], True, (0, 255, 0), 1)
+        heat = cv2.applyColorMap((heat * 255).astype(np.uint8), cv2.COLORMAP_JET)
+        cv2.imwrite(os.path.join(args['result_dir'], os.path.basename(path)), np.hstack([heat, img]))
     
+def split_line_with_contour(img, heat, thresh):
+    if np.max(heat) > thresh:
+        heat = cv2.equalizeHist((heat * 255).astype(np.uint8)).astype(np.float32) / 255
+    binary = heat > thresh
+    contours, _ = cv2.findContours((binary * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # determine how should we expand the contour to make them intersect
+    iterations = 1
+    kernel = np.array([[0, 1, 0]] * 3, dtype=np.uint8) # dilate on vertical only
+    dilated = cv2.dilate((binary * 255).astype(np.uint8), kernel)
+    contours_tmp, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    while len(contours_tmp) == len(contours):
+        dilated = cv2.dilate(dilated, kernel)
+        contours_tmp, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        iterations += 1
+        if iterations == min(img.shape[:2]):
+            break
+    
+    # expand the contour right just before they intersect to each other
+    iterations -= 1
+    dilated = cv2.dilate((binary * 255).astype(np.uint8), np.ones((3,3)), iterations=iterations)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-def run(image, heat_map, output_path, margin=0):
-    # image, heat_map = preprocess(image, heat_map)
-    # main process
-    # calculate histogram in horizontal direction
-    h, w = heat_map.shape[:2]
+    # hoge = np.dstack([img.copy()] * 3)
+    # cv2.drawContours(hoge, contours_tmp, -1, (0, 255, 0), 1)
+    # cv2.imwrite("hoge.png", hoge)
+    # exit()
 
-    histogram = np.sum(heat_map, axis=1)
+    all_boxes = []
+    for contour in contours:
+        # straight rectangle
+        x, y, w, h = cv2.boundingRect(contour)
+        # piece = heat[y:y+h, x:x+w]
+        if min(w, h) < 5:
+            continue
+        
+        # skew rectangle
+        min_rect = cv2.minAreaRect(contour)
 
-    # estimate text height (in pixel)
-    rough_text_height = estimate_text_height_2(heat_map)
+        # approximated contour
+        epsilon = 0.0002 * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        approx = approx.reshape((-1, 2))
+        if approx.shape[0] >= 4:
+            all_boxes.append(approx)
+        else:
+            all_boxes.append(min_rect)
 
-    # generate straightline
-    valleys, _ = find_peaks(-histogram, distance=rough_text_height * 0.8)
-    peaks, _ = find_peaks(histogram, distance=rough_text_height * 0.8)
+    return all_boxes
 
-    straight_lines = valleys
+        
+        
 
-    # double check
-    for v1, v2 in zip(valleys, valleys[1:]):
-        peaks_inside = [peak for peak in peaks if (v1 < peak and peak < v2)]
-        if len(peaks_inside) < 1: # there exists 1 wrong valley
-            wrong_valley = v1 if histogram[v1] > histogram[v2] else v2
-            straight_lines = straight_lines[straight_lines != wrong_valley]
-        #TODO do something in case there exists more than 2 peaks
-
-    straight_lines = list(straight_lines)
-    if len(straight_lines) == 0:
-        straight_lines = [0, heat_map.shape[0] - 1]
-    if straight_lines[0] > rough_text_height:
-        straight_lines.insert(0, 0)
-    if heat_map.shape[0] - 1 - straight_lines[-1] > rough_text_height:
-        straight_lines.append(heat_map.shape[0] - 1)
-    if DEBUG:
-        tmp = image.copy()
-        for line in straight_lines:
-            tmp[line,:,0] = 0
-            tmp[line,:,1] = 0
-            tmp[line,:,2] = 255
-        cv2.imwrite("DEBUG/1_straight.png", tmp)
-    break_lines = line_adjustment(heat_map, straight_lines, text_height=int(rough_text_height), score_text=heat_map)
-
-    if DEBUG:
-        result = draw_line_on_image(image.copy(), break_lines)
-        tmp1 = cv2.applyColorMap((heat_map * 255).astype(np.uint8), cv2.COLORMAP_JET)
-        # tmp1 = np.dstack([heat_map * 255, heat_map * 255, heat_map * 255])
-        result = np.hstack([tmp1, result])
-        return result
-    else:
-        result = split_image(image, break_lines, margin)
-        image_lines = []
-        for i, item in enumerate(result):
-            img_path = os.path.splitext(output_path)[0] + "_" + str(i) + ".png"
-            image_lines.append((item, img_path))
-        return image_lines
 
 def preprocess(img, image_short_side):
     '''
@@ -154,94 +157,6 @@ def CNN_forward(model, img, image_short_side):
     pred = cv2.resize(pred, original_shape[::-1])
     return pred
 
-def estimate_text_height_2(score_text, binary_thresh=0.5):
-    img = np.zeros(score_text.shape, np.uint8)
-    img[score_text > binary_thresh] = 255
-    contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE, offset=(0, 0))
-    box_heights = []
-    for c in contours:
-        poly = cv2.approxPolyDP(c, 1, True)
-        rect = cv2.boundingRect(poly)
-        box_heights.append(rect[3])
-    if len(box_heights) == 0 or np.median(box_heights) < 5: # handle rare case
-        return 5
-    return np.median(box_heights)
-
-def line_adjustment(gray, lines, text_height, score_text):
-    chunk_width = gray.shape[1] // DEF_chunk_nums
-    histograms = []
-    histograms2 = []
-    break_lines = []
-    for i in range(DEF_chunk_nums):
-        chunk_img = gray[:, chunk_width * i : chunk_width * (i + 1)]
-        chunk_img = cv2.medianBlur(chunk_img, 5)
-        histograms.append(np.sum(chunk_img, axis=1) / 255)
-        chunk_st = score_text[:, chunk_width * i : chunk_width * (i + 1)]
-        histograms2.append(np.sum(chunk_st, axis=1))
-    for idx, line in enumerate(lines):
-        if idx == 0:  # no adjust for first line
-            break_lines.append([0] * DEF_chunk_nums)
-            continue
-        elif idx == len(lines) - 1:  # no adjust for last line
-            break_lines.append([gray.shape[0] - 1] * DEF_chunk_nums)
-            continue
-        center_line = line
-        break_line = []
-        for chunk_idx in range(DEF_chunk_nums):
-            histogram = histograms[chunk_idx]
-            histogram2 = histograms2[chunk_idx]
-            upper_line = break_lines[idx - 1][chunk_idx]
-            below_line = lines[idx + 1]
-
-            # change coordinate
-            histogram = histogram[upper_line:below_line]
-            histogram2 = histogram2[upper_line:below_line]
-            center_line -= upper_line
-
-            peaks, _ = find_peaks(histogram2, distance=text_height * 0.8, height=histogram2.max() / 2)
-
-            if len(peaks) < 2:
-                tmp = center_line if chunk_idx == 0 else break_line[chunk_idx - 1] - upper_line
-                start = max(0, tmp - text_height // 2)
-                end = min(histogram.shape[0], tmp + text_height // 2)
-            else:
-                start = peaks[0]
-                end = peaks[-1]
-            if chunk_idx == 0:
-                cost = calculate_cost(histogram[start:end], center_line - start, w1=1.0, w2=0, w3=0.001) # deactivate cummulation cost
-            else:
-                cost = calculate_cost(histogram[start:end], center_line - start)
-            # return minimum position as global coordinate
-            minimum_position = np.argmin(cost) + start + upper_line
-            # update break line
-            break_line.append(minimum_position)
-            center_line = minimum_position
-
-
-        break_lines.append(break_line)
-    return break_lines
-
-def calculate_cost(histogram, start_point, w1=1.0, w2=0.01, w3=0.001):
-    """
-    Calculate cost to find local minimum in adjust_line
-    Args:
-        histogram: histogram surrounding start point
-        start_point: current position of break_line
-    Returns:
-        cost: 1D numpy array of cost value
-    """
-    if histogram.shape[0] == 0: # the step of determining histogram failed
-        return np.array([0]) # return dummy array to catch the unusual case
-    cost = np.zeros((histogram.shape))
-    for i in range(histogram.shape[0]):
-        cost1 = histogram[i]  # histogram difference
-        range_1, range_2 = min(start_point, i), max(start_point, i)
-        cost2 = np.sum(
-            histogram[range_1 : range_2 + 1]
-        )  # sum of histogram from start point to i
-        cost3 = abs(i - start_point)  # histogram distance
-        cost[i] = cost1 * w1 + cost2 * w2 + cost3 * w3
-    return cost
 
 def split_image(gray, break_lines, margin):
     result = []
@@ -275,6 +190,29 @@ def draw_line_on_image(color, break_lines):
             previous = line
 
     return color
+
+def remove_background_imageset_by_opencv(imageset):
+    # get histogram
+    hist = np.histogram(imageset, bins=2)
+
+    hists = list(zip(hist[0], hist[1]))
+    # sort by frequency
+    hist_sort_by_frequency = sorted(hists, key=lambda hist: hist[0])
+    # most pixel color as background color
+    main_color = hist_sort_by_frequency[1][1]
+    # second most pixel color as pen color
+    pen_color = hist_sort_by_frequency[0][1]
+
+    if main_color > pen_color:
+        # light background
+        binary_img = cv2.adaptiveThreshold(imageset, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 10)
+        output_image = 255 - np.ma.array(imageset, mask = binary_img).filled(255)
+    else:
+        #dark background
+        binary_img = cv2.adaptiveThreshold(imageset, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 35, 5)
+        output_image = np.ma.array(imageset, mask = binary_img).filled(0)
+
+    return output_image
 
 if __name__ == '__main__':
     main()
