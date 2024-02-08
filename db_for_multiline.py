@@ -11,6 +11,9 @@ from experiment import Structure, Experiment
 from concern.config import Configurable, Config
 from tqdm import tqdm
 from scipy.signal import find_peaks
+import itertools
+from shapely.geometry import Polygon
+import pyclipper
 
 RGB_MEAN = np.array([122.67891434, 116.66876762, 104.00698793])
 DEBUG=True
@@ -55,7 +58,8 @@ def main():
     else:
         img_paths = [args['image_path']]
     os.makedirs(args['result_dir'], exist_ok=True)
-    for path in tqdm(img_paths):
+    for path in img_paths:
+        print(path)
         img = cv2.imread(path, cv2.IMREAD_COLOR)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = remove_background_imageset_by_opencv(gray)
@@ -71,28 +75,61 @@ def split_line_with_contour(img, heat, thresh):
         heat = cv2.equalizeHist((heat * 255).astype(np.uint8)).astype(np.float32) / 255
     binary = heat > thresh
     contours, _ = cv2.findContours((binary * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # determine how should we expand the contour to make them intersect
-    iterations = 1
-    kernel = np.array([[0, 1, 0]] * 3, dtype=np.uint8) # dilate on vertical only
-    dilated = cv2.dilate((binary * 255).astype(np.uint8), kernel)
-    contours_tmp, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    while len(contours_tmp) == len(contours):
-        dilated = cv2.dilate(dilated, kernel)
-        contours_tmp, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        iterations += 1
-        if iterations == min(img.shape[:2]):
-            break
-    
-    # expand the contour right just before they intersect to each other
-    iterations -= 1
-    dilated = cv2.dilate((binary * 255).astype(np.uint8), np.ones((3,3)), iterations=iterations)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # hoge = np.dstack([img.copy()] * 3)
-    # cv2.drawContours(hoge, contours_tmp, -1, (0, 255, 0), 1)
-    # cv2.imwrite("hoge.png", hoge)
-    # exit()
+    contours = [contour for contour in contours if min(cv2.boundingRect(contour)[2:]) > 5] # filter out <5 pixel height contour
+    if len(contours) <= 1: 
+        # return boxes as whole image
+        return [np.array([
+            [0, 0],
+            [img.shape[1], 0],
+            [img.shape[1], img.shape[0]],
+            [0, img.shape[0]]
+        ])]
+    # max_height = max([cv2.boundingRect(contour)[3] for contour in contours])
+    # contours_map = [cv2.drawContours(np.zeros(img.shape, np.uint8), [contour], 0, 255, cv2.FILLED) for contour in contours]
+
+    # # determine how should we expand the contour to make them intersect
+    # kernel = np.array([
+    #     [1, 1, 1],
+    #     [0, 1, 0],
+    #     [1, 1, 1]
+    # ], dtype=np.uint8) # dilate on vertical only
+    # iterations_list = [9999] * len(contours)
+    # print(len(contours))
+    # #TODO: can optimize the speed here
+    # for idx1, idx2 in itertools.combinations(range(len(contours)), 2):
+    #     map1 = contours_map[idx1]
+    #     map2 = contours_map[idx2]
+
+    #     # check if 2 contours can overlap in x direction
+    #     x1, y1, w1, h1 = cv2.boundingRect(contours[idx1])
+    #     x2, y2, w2, h2 = cv2.boundingRect(contours[idx2])
+    #     if min(x1 + w1, x2 + w2) - max(x1, x2) < -3:
+    #         continue
+    #     if min(y1 + h1, y2 + h2) - max(y1, y2) > -3 or min(y1 + h1, y2 + h2) - max(y1, y2) < - min(h1, h2):
+    #         continue
+
+    #     map12 = cv2.bitwise_or(map1, map2)
+    #     for iteration in range(1, min(h1, h2, w1, w2)):
+    #         map12 = cv2.dilate(map12, kernel, 1)
+    #         contours_tmp, _ = cv2.findContours(map12, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #         if len(contours_tmp) < 2:
+    #             iterations_list[idx1] = min(iterations_list[idx1], iteration - 1)
+    #             iterations_list[idx2] = min(iterations_list[idx2], iteration - 1)
+    #             break
+    # # expand the contour right just before they intersect to each other
+    # adjusted_contours = []
+    # for contour, contour_map, iterations in zip(contours, contours_map, iterations_list):
+    #     dilated = cv2.dilate(contour_map, np.ones((3,3)), iterations=iterations)
+    #     contours_tmp, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #     if len(contours_tmp) < 1:
+    #         assert "number of contour should be more than 1"
+    #     adjusted_contours.append(contours_tmp[0])
+    # contours = adjusted_contours
+    # # hoge = np.dstack([img.copy()] * 3)
+    # # cv2.drawContours(hoge, contours_tmp, -1, (0, 255, 0), 1)
+    # # cv2.imwrite("hoge.png", hoge)
+    # # exit()
 
     all_boxes = []
     for contour in contours:
@@ -110,9 +147,16 @@ def split_line_with_contour(img, heat, thresh):
         approx = cv2.approxPolyDP(contour, epsilon, True)
         approx = approx.reshape((-1, 2))
         if approx.shape[0] >= 4:
-            all_boxes.append(approx)
+            box = approx
         else:
-            all_boxes.append(min_rect)
+            box = min_rect
+        
+        poly = Polygon(box)
+        distance = poly.area * 2.0 / poly.length
+        offset = pyclipper.PyclipperOffset()
+        offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+        box = np.array(offset.Execute(distance))
+        all_boxes.append(box)
 
     return all_boxes
 
