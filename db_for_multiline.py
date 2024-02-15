@@ -15,6 +15,8 @@ import itertools
 from shapely.geometry import Polygon
 import pyclipper
 
+from time import time
+
 RGB_MEAN = np.array([122.67891434, 116.66876762, 104.00698793])
 DEBUG=True
 # number of chunks
@@ -58,18 +60,25 @@ def main():
     else:
         img_paths = [args['image_path']]
     os.makedirs(args['result_dir'], exist_ok=True)
-    for path in img_paths:
-        print(path)
+    start = time()
+    for path in tqdm(img_paths):
         img = cv2.imread(path, cv2.IMREAD_COLOR)
+        # img = cv2.copyMakeBorder(img, 30, 30, 30, 30, cv2.BORDER_CONSTANT, None, (255, 255, 255))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = remove_background_imageset_by_opencv(gray)
+        # gray = cv2.copyMakeBorder(gray, 30, 30, 30, 30, cv2.BORDER_CONSTANT, None, 0)
+        # img = np.dstack([gray, gray, gray])
+        # img = 255 - img
         heat = CNN_forward(model, img.astype('float32'), args['image_short_side'])
-        all_boxes = split_line_with_contour(gray, heat, args['box_thresh'])
-        for box in all_boxes:
+        all_boxes, original_boxes = split_line_with_contour(gray, heat, args['box_thresh'])
+        for box, ori in zip(all_boxes, original_boxes):
             cv2.polylines(img, [box], True, (0, 255, 0), 1)
+            # if ori is not None:
+            #     cv2.polylines(img, [ori], True, (0, 0, 255), 1)
         heat = cv2.applyColorMap((heat * 255).astype(np.uint8), cv2.COLORMAP_JET)
         cv2.imwrite(os.path.join(args['result_dir'], os.path.basename(path)), np.hstack([heat, img]))
-    
+    print(time() - start)
+
 def split_line_with_contour(img, heat, thresh):
     if np.max(heat) > thresh:
         heat = cv2.equalizeHist((heat * 255).astype(np.uint8)).astype(np.float32) / 255
@@ -77,14 +86,14 @@ def split_line_with_contour(img, heat, thresh):
     contours, _ = cv2.findContours((binary * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     contours = [contour for contour in contours if min(cv2.boundingRect(contour)[2:]) > 5] # filter out <5 pixel height contour
-    if len(contours) <= 1: 
+    if len(contours) == 0: 
         # return boxes as whole image
         return [np.array([
             [0, 0],
             [img.shape[1], 0],
             [img.shape[1], img.shape[0]],
             [0, img.shape[0]]
-        ])]
+        ])], [None]
     # max_height = max([cv2.boundingRect(contour)[3] for contour in contours])
     # contours_map = [cv2.drawContours(np.zeros(img.shape, np.uint8), [contour], 0, 255, cv2.FILLED) for contour in contours]
 
@@ -130,7 +139,7 @@ def split_line_with_contour(img, heat, thresh):
     # # cv2.drawContours(hoge, contours_tmp, -1, (0, 255, 0), 1)
     # # cv2.imwrite("hoge.png", hoge)
     # # exit()
-
+    original_boxes = []
     all_boxes = []
     for contour in contours:
         # straight rectangle
@@ -150,15 +159,18 @@ def split_line_with_contour(img, heat, thresh):
             box = approx
         else:
             box = min_rect
-        
+        original_boxes.append(box)
         poly = Polygon(box)
         distance = poly.area * 2.0 / poly.length
         offset = pyclipper.PyclipperOffset()
         offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
         box = np.array(offset.Execute(distance))
+        if len(box) > 1:
+            original_boxes.pop()
+            continue
         all_boxes.append(box)
 
-    return all_boxes
+    return all_boxes, original_boxes
 
         
         
