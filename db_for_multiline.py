@@ -1,14 +1,16 @@
 import argparse
 import os
 import torch
+from torch import nn
 import cv2
 import numpy as np
 
 
 import math
 from glob import glob
-from experiment import Structure, Experiment
-from concern.config import Configurable, Config
+from backbones.resnet import deformable_resnet18
+from decoders.seg_detector_asf import SegSpatialScaleDetector
+from decoders.seg_detector_loss import SegDetectorLossBuilder
 from tqdm import tqdm
 from scipy.signal import find_peaks
 import itertools
@@ -37,10 +39,6 @@ def main():
     args = vars(args)
     args = {k: v for k, v in args.items() if v is not None}
     
-    conf = Config()
-    experiment_args = conf.compile(conf.load(args['xml']))['Experiment']
-    experiment_args.update(cmd=args)
-    experiment = Configurable.construct_class_from_config(experiment_args)
 
     if args['cuda'] and torch.cuda.is_available():
         device = torch.device('cuda')
@@ -48,7 +46,7 @@ def main():
         device = torch.device('cpu')
     
     # load model
-    model = experiment.structure.builder.build(device)
+    model = SegDetectorModel(args=None, device=device)
     states = torch.load(
         args['resume'], map_location=device)
 
@@ -78,6 +76,58 @@ def main():
         heat = cv2.applyColorMap((heat * 255).astype(np.uint8), cv2.COLORMAP_JET)
         cv2.imwrite(os.path.join(args['result_dir'], os.path.basename(path)), np.hstack([heat, img]))
     print(time() - start)
+
+class BasicModel(nn.Module):
+    def __init__(self, device):
+        nn.Module.__init__(self)
+        super(BasicModel, self).__init__()
+        self.device = device
+        self.backbone = deformable_resnet18(pretrained=True)
+        self.decoder = SegSpatialScaleDetector(in_channels=[64, 128, 256, 512], k=50,
+                                    adaptive=True, attention_type='scale_channel_spatial')
+
+    def forward(self, batch, *args, **kwargs):
+        if isinstance(batch, dict):
+            data = batch['image'].to(self.device)
+        else:
+            data = batch.to(self.device)
+        return self.decoder(self.backbone(data), *args, **kwargs)
+
+class SegDetectorModel(nn.Module):
+    def __init__(self, args, device, distributed: bool = False, local_rank: int = 0):
+        super(SegDetectorModel, self).__init__()
+        from decoders.seg_detector_loss import SegDetectorLossBuilder
+
+        self.model = BasicModel(device)
+        # for loading models
+        self.model = nn.DataParallel(self.model)
+        # self.model = self.model.module.to(device)
+        self.criterion = SegDetectorLossBuilder('L1BalanceCELoss').build()
+        # self.criterion = parallelize(self.criterion, distributed, local_rank)
+        self.device = device
+        self.to(self.device)
+
+    @staticmethod
+    def model_name(args):
+        return os.path.join('seg_detector', args['backbone'], args['loss_class'])
+
+    def forward(self, batch, training=True):
+        if isinstance(batch, dict):
+            data = batch['image'].to(self.device)
+        else:
+            data = batch.to(self.device)
+        
+        data = data.float()
+        pred = self.model.module(data, training=training)
+        if self.training:
+            for key, value in batch.items():
+                if value is not None:
+                    if hasattr(value, 'to'):
+                        batch[key] = value.to(self.device)
+            loss_with_metrics = self.criterion(pred, batch)
+            loss, metrics = loss_with_metrics
+            return loss, pred, metrics
+        return pred
 
 def split_line_with_contour(img, heat, thresh):
     if np.max(heat) > thresh:
@@ -207,6 +257,8 @@ def resize_image(img, image_short_side):
 def CNN_forward(model, img, image_short_side):
     torch_img, original_shape = preprocess(img, image_short_side)
     with torch.no_grad():
+        # pred_backbone = model.backbone(torch_img)
+        # pred = model.decoder(pred_backbone, training=True)
         pred = model.forward(torch_img, training=True)
     pred = pred['thresh_binary']
     pred = np.clip(pred[0, 0, ...].detach().cpu().numpy(), 0, 1)

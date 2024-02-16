@@ -2,7 +2,7 @@ import torch
 from torch.autograd import Function
 from torch.nn.modules.utils import _pair
 
-from .. import deform_conv_cuda
+from .. import deform_conv_cpu, deform_conv_cuda
 
 
 class DeformConvFunction(Function):
@@ -36,13 +36,18 @@ class DeformConvFunction(Function):
                                             ctx.dilation, ctx.stride))
 
         ctx.bufs_ = [input.new_empty(0), input.new_empty(0)]  # columns, ones
-
+        cur_im2col_step = min(ctx.im2col_step, input.shape[0])
+        assert (input.shape[0] %
+                cur_im2col_step) == 0, 'im2col step must divide batchsize'
+            
         if not input.is_cuda:
-            raise NotImplementedError
+            deform_conv_cpu.deform_conv_forward_cuda(
+                input, weight, offset, output, ctx.bufs_[0], ctx.bufs_[1],
+                weight.size(3), weight.size(2), ctx.stride[1], ctx.stride[0],
+                ctx.padding[1], ctx.padding[0], ctx.dilation[1],
+                ctx.dilation[0], ctx.groups, ctx.deformable_groups,
+                cur_im2col_step)
         else:
-            cur_im2col_step = min(ctx.im2col_step, input.shape[0])
-            assert (input.shape[0] %
-                    cur_im2col_step) == 0, 'im2col step must divide batchsize'
             deform_conv_cuda.deform_conv_forward_cuda(
                 input, weight, offset, output, ctx.bufs_[0], ctx.bufs_[1],
                 weight.size(3), weight.size(2), ctx.stride[1], ctx.stride[0],
@@ -56,17 +61,23 @@ class DeformConvFunction(Function):
         input, offset, weight = ctx.saved_tensors
 
         grad_input = grad_offset = grad_weight = None
+        cur_im2col_step = min(ctx.im2col_step, input.shape[0])
+        assert (input.shape[0] %
+                cur_im2col_step) == 0, 'im2col step must divide batchsize'
 
-        if not grad_output.is_cuda:
-            raise NotImplementedError
-        else:
-            cur_im2col_step = min(ctx.im2col_step, input.shape[0])
-            assert (input.shape[0] %
-                    cur_im2col_step) == 0, 'im2col step must divide batchsize'
-
-            if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
-                grad_input = torch.zeros_like(input)
-                grad_offset = torch.zeros_like(offset)
+        if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
+            grad_input = torch.zeros_like(input)
+            grad_offset = torch.zeros_like(offset)
+                
+            if not grad_output.is_cuda:
+                deform_conv_cpu.deform_conv_backward_input_cuda(
+                    input, offset, grad_output, grad_input,
+                    grad_offset, weight, ctx.bufs_[0], weight.size(3),
+                    weight.size(2), ctx.stride[1], ctx.stride[0],
+                    ctx.padding[1], ctx.padding[0], ctx.dilation[1],
+                    ctx.dilation[0], ctx.groups, ctx.deformable_groups,
+                    cur_im2col_step)
+            else:
                 deform_conv_cuda.deform_conv_backward_input_cuda(
                     input, offset, grad_output, grad_input,
                     grad_offset, weight, ctx.bufs_[0], weight.size(3),
@@ -75,8 +86,17 @@ class DeformConvFunction(Function):
                     ctx.dilation[0], ctx.groups, ctx.deformable_groups,
                     cur_im2col_step)
 
-            if ctx.needs_input_grad[2]:
-                grad_weight = torch.zeros_like(weight)
+        if ctx.needs_input_grad[2]:
+            grad_weight = torch.zeros_like(weight)
+            if not grad_output.is_cuda:
+                deform_conv_cpu.deform_conv_backward_parameters_cuda(
+                    input, offset, grad_output,
+                    grad_weight, ctx.bufs_[0], ctx.bufs_[1], weight.size(3),
+                    weight.size(2), ctx.stride[1], ctx.stride[0],
+                    ctx.padding[1], ctx.padding[0], ctx.dilation[1],
+                    ctx.dilation[0], ctx.groups, ctx.deformable_groups, 1,
+                    cur_im2col_step)
+            else:
                 deform_conv_cuda.deform_conv_backward_parameters_cuda(
                     input, offset, grad_output,
                     grad_weight, ctx.bufs_[0], ctx.bufs_[1], weight.size(3),
@@ -84,7 +104,6 @@ class DeformConvFunction(Function):
                     ctx.padding[1], ctx.padding[0], ctx.dilation[1],
                     ctx.dilation[0], ctx.groups, ctx.deformable_groups, 1,
                     cur_im2col_step)
-
         return (grad_input, grad_offset, grad_weight, None, None, None, None,
                 None)
 
@@ -127,37 +146,49 @@ class ModulatedDeformConvFunction(Function):
         ctx.with_bias = bias is not None
         if not ctx.with_bias:
             bias = input.new_empty(1)  # fake tensor
-        if not input.is_cuda:
-            raise NotImplementedError
+
         if weight.requires_grad or mask.requires_grad or offset.requires_grad \
                 or input.requires_grad:
             ctx.save_for_backward(input, offset, mask, weight, bias)
         output = input.new_empty(
             ModulatedDeformConvFunction._infer_shape(ctx, input, weight))
         ctx._bufs = [input.new_empty(0), input.new_empty(0)]
-        deform_conv_cuda.modulated_deform_conv_cuda_forward(
-            input, weight, bias, ctx._bufs[0], offset, mask, output,
-            ctx._bufs[1], weight.shape[2], weight.shape[3], ctx.stride,
-            ctx.stride, ctx.padding, ctx.padding, ctx.dilation, ctx.dilation,
-            ctx.groups, ctx.deformable_groups, ctx.with_bias)
+        if not input.is_cuda:
+            deform_conv_cpu.modulated_deform_conv_cuda_forward(
+                input, weight, bias, ctx._bufs[0], offset, mask, output,
+                ctx._bufs[1], weight.shape[2], weight.shape[3], ctx.stride,
+                ctx.stride, ctx.padding, ctx.padding, ctx.dilation, ctx.dilation,
+                ctx.groups, ctx.deformable_groups, ctx.with_bias)
+        else:
+            deform_conv_cuda.modulated_deform_conv_cuda_forward(
+                input, weight, bias, ctx._bufs[0], offset, mask, output,
+                ctx._bufs[1], weight.shape[2], weight.shape[3], ctx.stride,
+                ctx.stride, ctx.padding, ctx.padding, ctx.dilation, ctx.dilation,
+                ctx.groups, ctx.deformable_groups, ctx.with_bias)
         return output
 
     @staticmethod
     def backward(ctx, grad_output):
-        if not grad_output.is_cuda:
-            raise NotImplementedError
         input, offset, mask, weight, bias = ctx.saved_tensors
         grad_input = torch.zeros_like(input)
         grad_offset = torch.zeros_like(offset)
         grad_mask = torch.zeros_like(mask)
         grad_weight = torch.zeros_like(weight)
         grad_bias = torch.zeros_like(bias)
-        deform_conv_cuda.modulated_deform_conv_cuda_backward(
-            input, weight, bias, ctx._bufs[0], offset, mask, ctx._bufs[1],
-            grad_input, grad_weight, grad_bias, grad_offset, grad_mask,
-            grad_output, weight.shape[2], weight.shape[3], ctx.stride,
-            ctx.stride, ctx.padding, ctx.padding, ctx.dilation, ctx.dilation,
-            ctx.groups, ctx.deformable_groups, ctx.with_bias)
+        if not grad_output.is_cuda:
+            deform_conv_cpu.modulated_deform_conv_cuda_backward(
+                input, weight, bias, ctx._bufs[0], offset, mask, ctx._bufs[1],
+                grad_input, grad_weight, grad_bias, grad_offset, grad_mask,
+                grad_output, weight.shape[2], weight.shape[3], ctx.stride,
+                ctx.stride, ctx.padding, ctx.padding, ctx.dilation, ctx.dilation,
+                ctx.groups, ctx.deformable_groups, ctx.with_bias)
+        else:
+            deform_conv_cuda.modulated_deform_conv_cuda_backward(
+                input, weight, bias, ctx._bufs[0], offset, mask, ctx._bufs[1],
+                grad_input, grad_weight, grad_bias, grad_offset, grad_mask,
+                grad_output, weight.shape[2], weight.shape[3], ctx.stride,
+                ctx.stride, ctx.padding, ctx.padding, ctx.dilation, ctx.dilation,
+                ctx.groups, ctx.deformable_groups, ctx.with_bias)
         if not ctx.with_bias:
             grad_bias = None
 
