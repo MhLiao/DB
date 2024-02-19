@@ -33,6 +33,8 @@ def main():
     parser.add_argument('--image_short_side', type=int, default=0, help='set this arg as the portion of 32')
     parser.add_argument('--box_thresh', type=float, default=0.6,
                         help='The threshold to replace it in the representers')
+    parser.add_argument('--pad', type=int, default=0,
+                        help='add padding to the input image in all 4 directions: left, right, top, bottom')                   
     parser.add_argument('--cuda', action='store_true', default=False, help='using cuda if called, otherwise cpu')
     
     args = parser.parse_args()
@@ -54,19 +56,30 @@ def main():
     model.eval()
 
     if os.path.isdir(args['image_path']):
-        img_paths = [it for it in glob(f"{args['image_path']}/*.*") if "jpg" in it or "png" in it]
+        img_paths = [it for it in glob(f"{args['image_path']}/*.*") if "jpg" in it or "png" in it or "jpeg" in it]
     else:
         img_paths = [args['image_path']]
     os.makedirs(args['result_dir'], exist_ok=True)
     start = time()
     for path in tqdm(img_paths):
         img = cv2.imread(path, cv2.IMREAD_COLOR)
-        # img = cv2.copyMakeBorder(img, 30, 30, 30, 30, cv2.BORDER_CONSTANT, None, (255, 255, 255))
+        if args['pad'] > 0:
+            # get histogram
+            hist = np.histogram(img, bins=2)
+
+            hists = list(zip(hist[0], hist[1]))
+            # sort by frequency
+            hist_sort_by_frequency = sorted(hists, key=lambda hist: hist[0])
+            # most pixel color as background color
+            main_color = hist_sort_by_frequency[1][1]
+            # second most pixel color as pen color
+            pen_color = hist_sort_by_frequency[0][1]
+            if main_color > pen_color:
+                img = cv2.copyMakeBorder(img, args['pad'], args['pad'], args['pad'], args['pad'], cv2.BORDER_CONSTANT, None, (255, 255, 255))
+            else:
+                img = cv2.copyMakeBorder(img, args['pad'], args['pad'], args['pad'], args['pad'], cv2.BORDER_CONSTANT, None, (0, 0, 0))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = remove_background_imageset_by_opencv(gray)
-        # gray = cv2.copyMakeBorder(gray, 30, 30, 30, 30, cv2.BORDER_CONSTANT, None, 0)
-        # img = np.dstack([gray, gray, gray])
-        # img = 255 - img
         heat = CNN_forward(model, img.astype('float32'), args['image_short_side'])
         all_boxes, original_boxes = split_line_with_contour(gray, heat, args['box_thresh'])
         for box, ori in zip(all_boxes, original_boxes):
@@ -129,11 +142,41 @@ class SegDetectorModel(nn.Module):
             return loss, pred, metrics
         return pred
 
+def adjust_corner(contour, img_shape, kernel_size):
+    binary = cv2.drawContours(np.zeros(img_shape, np.uint8), [contour], 0, 255, cv2.FILLED)
+    kernel1 = np.zeros((kernel_size, kernel_size), np.uint8)
+    kernel1[-1, :] = 1
+    kernel1[:, -1] = 1
+    kernel1[0, :] = 1
+    kernel1[:, 0] = 1
+    kernel2 = cv2.getStructuringElement(cv2.MORPH_CROSS, (kernel_size, kernel_size))
+    # hoge = np.zeros((img_shape[0], img_shape[1], 3), np.uint8)
+    # hoge[:, :, 0] = binary
+    binary = cv2.dilate(binary, kernel1, iterations=1)
+    binary = cv2.erode(binary, kernel2, iterations=1)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # hoge[:, :, 2] = binary
+    # cv2.imwrite("hage.png", hoge)
+    if len(contours) == 1:
+        return contours[0]
+    else:
+        return contour
+
+
+def check_min_rect_quality(min_rect, contour, overlap_ratio=0.8):
+    p1 = Polygon(min_rect)
+    p2 = Polygon(contour)
+    if p2.area / p1.area > overlap_ratio:
+        return True
+    return False
+
+
 def split_line_with_contour(img, heat, thresh):
     if np.max(heat) > thresh:
         heat = cv2.equalizeHist((heat * 255).astype(np.uint8)).astype(np.float32) / 255
     binary = heat > thresh
-    contours, _ = cv2.findContours((binary * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    binary = (binary * 255).astype(np.uint8)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     contours = [contour for contour in contours if min(cv2.boundingRect(contour)[2:]) > 5] # filter out <5 pixel height contour
     if len(contours) == 0: 
@@ -198,26 +241,79 @@ def split_line_with_contour(img, heat, thresh):
         if min(w, h) < 5:
             continue
         
-        # skew rectangle
-        min_rect = cv2.minAreaRect(contour)
+        # contour = adjust_corner(contour, img_shape=img.shape, kernel_size=h)
 
+        # # straight rectangle
+        # x, y, w, h = cv2.boundingRect(contour)
+        # # piece = heat[y:y+h, x:x+w]
+        # if min(w, h) < 5:
+        #     continue
+
+        # skew rectangle
+        bounding_box = cv2.minAreaRect(contour)
+        # poly
+        points = sorted(list(cv2.boxPoints(bounding_box)), key=lambda x: x[0])
+
+        index_1, index_2, index_3, index_4 = 0, 1, 2, 3
+        if points[1][1] > points[0][1]:
+            index_1 = 0
+            index_4 = 1
+        else:
+            index_1 = 1
+            index_4 = 0
+        if points[3][1] > points[2][1]:
+            index_2 = 2
+            index_3 = 3
+        else:
+            index_2 = 3
+            index_3 = 2
+
+        min_rect = [points[index_1], points[index_2],
+               points[index_3], points[index_4]]
+
+        
         # approximated contour
         epsilon = 0.0002 * cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, epsilon, True)
         approx = approx.reshape((-1, 2))
-        if approx.shape[0] >= 4:
+        if approx.shape[0] >= 4 and not check_min_rect_quality(min_rect, approx):
             box = approx
+            weight = 2.0
+            hoge = False
         else:
             box = min_rect
+            weight = 2.0
+            hoge = True
         original_boxes.append(box)
         poly = Polygon(box)
-        distance = poly.area * 2.0 / poly.length
+        distance = poly.area * weight / poly.length
         offset = pyclipper.PyclipperOffset()
         offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
         box = np.array(offset.Execute(distance))
-        if len(box) > 1:
-            original_boxes.pop()
-            continue
+        # print(box)
+        if hoge:
+            bounding_box = cv2.minAreaRect(box.reshape(-1,1,2))
+            # poly
+            points = sorted(list(cv2.boxPoints(bounding_box)), key=lambda x: x[0])
+
+            index_1, index_2, index_3, index_4 = 0, 1, 2, 3
+            if points[1][1] > points[0][1]:
+                index_1 = 0
+                index_4 = 1
+            else:
+                index_1 = 1
+                index_4 = 0
+            if points[3][1] > points[2][1]:
+                index_2 = 2
+                index_3 = 3
+            else:
+                index_2 = 3
+                index_3 = 2
+
+            box = np.array([points[index_1], points[index_2],
+                points[index_3], points[index_4]]).astype(np.int32)
+            # original_boxes.pop()
+            # continue
         all_boxes.append(box)
 
     return all_boxes, original_boxes
