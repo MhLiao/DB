@@ -81,11 +81,11 @@ def main():
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = remove_background_imageset_by_opencv(gray)
         heat = CNN_forward(model, img.astype('float32'), args['image_short_side'])
-        all_boxes, original_boxes = split_line_with_contour(gray, heat, args['box_thresh'])
-        for idx, (box, ori) in enumerate(zip(all_boxes, original_boxes)):
+        all_boxes, original_boxes, end_line_list = split_line_with_contour(gray, heat, args['box_thresh'])
+        for idx, (box, ori, is_endline) in enumerate(zip(all_boxes, original_boxes, end_line_list)):
             cv2.polylines(img, [box], True, (0, 255, 0), 1)
             min_x = np.argmin(box[:, 0])
-            cv2.putText(img, str(idx), box[min_x, :], cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+            cv2.putText(img, str(idx), box[min_x, :], cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255) if is_endline else (255, 0, 0), 2, cv2.LINE_AA)
             # if ori is not None:
             #     cv2.polylines(img, [ori], True, (0, 0, 255), 1)
         heat = cv2.applyColorMap((heat * 255).astype(np.uint8), cv2.COLORMAP_JET)
@@ -188,7 +188,7 @@ def split_line_with_contour(img, heat, thresh):
             [img.shape[1], 0],
             [img.shape[1], img.shape[0]],
             [0, img.shape[0]]
-        ])], [None]
+        ])], [None], [False]
     # max_height = max([cv2.boundingRect(contour)[3] for contour in contours])
     # contours_map = [cv2.drawContours(np.zeros(img.shape, np.uint8), [contour], 0, 255, cv2.FILLED) for contour in contours]
 
@@ -298,18 +298,20 @@ def split_line_with_contour(img, heat, thresh):
         x, y, w, h = cv2.boundingRect(box)
         all_rects.append((x, y, w, h))
         all_boxes.append(box.reshape(-1, 2))
-    idx = sorting_boxes(all_rects)
+    idx, end_line_list = sorting_boxes(all_rects)
     all_boxes = list(map(lambda i: all_boxes[i], idx))
     # original_boxes = original_boxes[idx]
-    return all_boxes, original_boxes
+    return all_boxes, original_boxes, end_line_list
 
 
 
 def sorting_boxes(boxes, overlap_thresh_y=0.5, overlap_thresh_x=0.5):
     boxes = np.array(boxes)
     idx_list = np.argsort(boxes[:, 1] + boxes[:, 3] / 2) # sort by y
+    end_line_list = []
     for i in range(len(idx_list) - 1):
         x1, y1, w1, h1 = boxes[idx_list[i]]
+        is_end_line = True
         for j in range(i + 1, len(idx_list)):
             x2, y2, w2, h2 = boxes[idx_list[j]]
             # check if these 2 boxes are overlap
@@ -319,9 +321,13 @@ def sorting_boxes(boxes, overlap_thresh_y=0.5, overlap_thresh_x=0.5):
                     idx_list[i] = idx_list[j]
                     idx_list[j] = tmp
                     x1, y1, w1, h1 = x2, y2, w2, h2
+                is_end_line = False
             else:
                 break
-    return idx_list
+        end_line_list.append(is_end_line)
+    # last box
+    end_line_list.append(True)
+    return idx_list, end_line_list
             
 
 
