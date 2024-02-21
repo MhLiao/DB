@@ -82,8 +82,10 @@ def main():
         gray = remove_background_imageset_by_opencv(gray)
         heat = CNN_forward(model, img.astype('float32'), args['image_short_side'])
         all_boxes, original_boxes = split_line_with_contour(gray, heat, args['box_thresh'])
-        for box, ori in zip(all_boxes, original_boxes):
+        for idx, (box, ori) in enumerate(zip(all_boxes, original_boxes)):
             cv2.polylines(img, [box], True, (0, 255, 0), 1)
+            min_x = np.argmin(box[:, 0])
+            cv2.putText(img, str(idx), box[min_x, :], cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
             # if ori is not None:
             #     cv2.polylines(img, [ori], True, (0, 0, 255), 1)
         heat = cv2.applyColorMap((heat * 255).astype(np.uint8), cv2.COLORMAP_JET)
@@ -234,6 +236,7 @@ def split_line_with_contour(img, heat, thresh):
     # # exit()
     original_boxes = []
     all_boxes = []
+    all_rects = []
     for contour in contours:
         # straight rectangle
         x, y, w, h = cv2.boundingRect(contour)
@@ -241,13 +244,13 @@ def split_line_with_contour(img, heat, thresh):
         if min(w, h) < 5:
             continue
         
-        # contour = adjust_corner(contour, img_shape=img.shape, kernel_size=h)
+        contour = adjust_corner(contour, img_shape=img.shape, kernel_size=h)
 
-        # # straight rectangle
-        # x, y, w, h = cv2.boundingRect(contour)
-        # # piece = heat[y:y+h, x:x+w]
-        # if min(w, h) < 5:
-        #     continue
+        # straight rectangle
+        x, y, w, h = cv2.boundingRect(contour)
+        # piece = heat[y:y+h, x:x+w]
+        if min(w, h) < 5:
+            continue
 
         # skew rectangle
         bounding_box = cv2.minAreaRect(contour)
@@ -276,14 +279,12 @@ def split_line_with_contour(img, heat, thresh):
         epsilon = 0.0002 * cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, epsilon, True)
         approx = approx.reshape((-1, 2))
-        if approx.shape[0] >= 4 and not check_min_rect_quality(min_rect, approx):
+        if approx.shape[0] >= 4: # and not check_min_rect_quality(min_rect, approx):
             box = approx
             weight = 2.0
-            hoge = False
         else:
             box = min_rect
             weight = 2.0
-            hoge = True
         original_boxes.append(box)
         poly = Polygon(box)
         distance = poly.area * weight / poly.length
@@ -291,35 +292,37 @@ def split_line_with_contour(img, heat, thresh):
         offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
         box = np.array(offset.Execute(distance))
         # print(box)
-        if hoge:
-            bounding_box = cv2.minAreaRect(box.reshape(-1,1,2))
-            # poly
-            points = sorted(list(cv2.boxPoints(bounding_box)), key=lambda x: x[0])
-
-            index_1, index_2, index_3, index_4 = 0, 1, 2, 3
-            if points[1][1] > points[0][1]:
-                index_1 = 0
-                index_4 = 1
-            else:
-                index_1 = 1
-                index_4 = 0
-            if points[3][1] > points[2][1]:
-                index_2 = 2
-                index_3 = 3
-            else:
-                index_2 = 3
-                index_3 = 2
-
-            box = np.array([points[index_1], points[index_2],
-                points[index_3], points[index_4]]).astype(np.int32)
-            # original_boxes.pop()
-            # continue
-        all_boxes.append(box)
-
+        if len(box) > 1:
+            original_boxes.pop()
+            continue
+        x, y, w, h = cv2.boundingRect(box)
+        all_rects.append((x, y, w, h))
+        all_boxes.append(box.reshape(-1, 2))
+    idx = sorting_boxes(all_rects)
+    all_boxes = list(map(lambda i: all_boxes[i], idx))
+    # original_boxes = original_boxes[idx]
     return all_boxes, original_boxes
 
-        
-        
+
+
+def sorting_boxes(boxes, overlap_thresh_y=0.5, overlap_thresh_x=0.5):
+    boxes = np.array(boxes)
+    idx_list = np.argsort(boxes[:, 1] + boxes[:, 3] / 2) # sort by y
+    for i in range(len(idx_list) - 1):
+        x1, y1, w1, h1 = boxes[idx_list[i]]
+        for j in range(i + 1, len(idx_list)):
+            x2, y2, w2, h2 = boxes[idx_list[j]]
+            # check if these 2 boxes are overlap
+            if (min(y1 + h1, y2 + h2) - max(y1, y2)) / min(h1, h2) > overlap_thresh_y and (min(x1 + w1, x2 + w2) - max(x1, x2)) / min(w1, w2) < overlap_thresh_x:
+                if x1 > x2:
+                    tmp = idx_list[i]
+                    idx_list[i] = idx_list[j]
+                    idx_list[j] = tmp
+                    x1, y1, w1, h1 = x2, y2, w2, h2
+            else:
+                break
+    return idx_list
+            
 
 
 def preprocess(img, image_short_side):
