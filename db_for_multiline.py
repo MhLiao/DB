@@ -81,8 +81,8 @@ def main():
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = remove_background_imageset_by_opencv(gray)
         heat = CNN_forward(model, img.astype('float32'), args['image_short_side'])
-        all_boxes, original_boxes, end_line_list = split_line_with_contour(gray, heat, args['box_thresh'])
-        for idx, (box, ori, is_endline) in enumerate(zip(all_boxes, original_boxes, end_line_list)):
+        all_boxes, all_rects, end_line_list = split_line_with_contour(gray, heat, args['box_thresh'])
+        for idx, (box, (x, y, w, h), is_endline) in enumerate(zip(all_boxes, all_rects, end_line_list)):
             cv2.polylines(img, [box], True, (0, 255, 0), 1)
             min_x = np.argmin(box[:, 0])
             cv2.putText(img, str(idx), box[min_x, :], cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255) if is_endline else (255, 0, 0), 2, cv2.LINE_AA)
@@ -301,7 +301,8 @@ def split_line_with_contour(img, heat, thresh):
     idx, end_line_list = sorting_boxes(all_rects)
     all_boxes = list(map(lambda i: all_boxes[i], idx))
     # original_boxes = original_boxes[idx]
-    return all_boxes, original_boxes, end_line_list
+    all_rects = list(map(lambda i: all_rects[i], idx))
+    return all_boxes, all_rects, end_line_list
 
 
 
