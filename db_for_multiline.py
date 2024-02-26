@@ -15,6 +15,7 @@ from tqdm import tqdm
 from scipy.signal import find_peaks
 import itertools
 from shapely.geometry import Polygon
+from shapely.ops import unary_union
 import pyclipper
 
 from time import time
@@ -188,7 +189,7 @@ def split_line_with_contour(img, heat, thresh):
             [img.shape[1], 0],
             [img.shape[1], img.shape[0]],
             [0, img.shape[0]]
-        ])], [None], [False]
+        ])], [(0, 0, img.shape[1], img.shape[0])], [False]
     # max_height = max([cv2.boundingRect(contour)[3] for contour in contours])
     # contours_map = [cv2.drawContours(np.zeros(img.shape, np.uint8), [contour], 0, 255, cv2.FILLED) for contour in contours]
 
@@ -298,7 +299,7 @@ def split_line_with_contour(img, heat, thresh):
         x, y, w, h = cv2.boundingRect(box)
         all_rects.append((x, y, w, h))
         all_boxes.append(box.reshape(-1, 2))
-    idx, end_line_list = sorting_boxes(all_rects)
+    idx, end_line_list = sort_and_merge_boxes(all_rects, all_boxes)
     all_boxes = list(map(lambda i: all_boxes[i], idx))
     # original_boxes = original_boxes[idx]
     all_rects = list(map(lambda i: all_rects[i], idx))
@@ -306,28 +307,51 @@ def split_line_with_contour(img, heat, thresh):
 
 
 
-def sorting_boxes(boxes, overlap_thresh_y=0.5, overlap_thresh_x=0.5):
+def sort_and_merge_boxes(boxes, polys, overlap_thresh_y=0.5, overlap_thresh_x=0.1):
     boxes = np.array(boxes)
     idx_list = np.argsort(boxes[:, 1] + boxes[:, 3] / 2) # sort by y
     end_line_list = []
+    is_drop = np.array([False] * len(idx_list))
     for i in range(len(idx_list) - 1):
-        x1, y1, w1, h1 = boxes[idx_list[i]]
         is_end_line = True
+        if is_drop[i]:
+            end_line_list.append(is_end_line)
+            continue
+        x1, y1, w1, h1 = boxes[idx_list[i]]
         for j in range(i + 1, len(idx_list)):
             x2, y2, w2, h2 = boxes[idx_list[j]]
             # check if these 2 boxes are overlap
-            if (min(y1 + h1, y2 + h2) - max(y1, y2)) / min(h1, h2) > overlap_thresh_y and (min(x1 + w1, x2 + w2) - max(x1, x2)) / min(w1, w2) < overlap_thresh_x:
-                if x1 > x2:
-                    tmp = idx_list[i]
-                    idx_list[i] = idx_list[j]
-                    idx_list[j] = tmp
-                    x1, y1, w1, h1 = x2, y2, w2, h2
-                is_end_line = False
+            if (min(y1 + h1, y2 + h2) - max(y1, y2)) / min(h1, h2) > overlap_thresh_y:
+                if (min(x1 + w1, x2 + w2) - max(x1, x2)) / min(w1, w2) > overlap_thresh_x: # merge 2 boxes
+                # if False:
+                    # merge boxes
+                    x1, y1, w1, h1 = min(x1, x2), min(y1, y2), max(x1 + w1, x2 + w2) - min(x1, x2), max(y1 + h1, y2 + h2) - min(y1, y2)
+                    boxes[idx_list[i]] = x1, y1, w1, h1
+                    # merge polygons
+                    poly1 = Polygon(polys[idx_list[i]])
+                    poly2 = Polygon(polys[idx_list[j]])
+                    merge = unary_union([poly1, poly2])
+                    polys[idx_list[i]] = np.array(merge.exterior.coords, np.int32).reshape(-1, 2)
+                    
+                    is_drop[j] = True
+                else:
+                    if x1 > x2: # switch position
+                        tmp = idx_list[i]
+                        idx_list[i] = idx_list[j]
+                        idx_list[j] = tmp
+                        tmp = is_drop[i]
+                        is_drop[i] = is_drop[j]
+                        is_drop[j] = tmp
+                        x1, y1, w1, h1 = x2, y2, w2, h2
+                    is_end_line = False
             else:
                 break
         end_line_list.append(is_end_line)
     # last box
     end_line_list.append(True)
+    # remove index where is_drop == True
+    idx_list = np.array(idx_list)[is_drop == False]
+    end_line_list = np.array(end_line_list)[is_drop == False]
     return idx_list, end_line_list
             
 
