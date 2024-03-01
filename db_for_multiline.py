@@ -179,7 +179,7 @@ def split_line_with_contour(img, heat, thresh):
         heat = cv2.equalizeHist((heat * 255).astype(np.uint8)).astype(np.float32) / 255
     binary = heat > thresh
     binary = (binary * 255).astype(np.uint8)
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((3, 5))), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     contours = [contour for contour in contours if min(cv2.boundingRect(contour)[2:]) > 5] # filter out <5 pixel height contour
     if len(contours) == 0: 
